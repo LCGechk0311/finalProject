@@ -25,13 +25,20 @@ import { generateRefreshToken } from '../utils/tokenUtils';
 import { storeRefreshTokenInDatabase } from '../utils/tokenUtils';
 import { prisma } from '../../prisma/prismaClient';
 import { generateError } from '../utils/errorGenerator';
+import { validate } from 'class-validator';
 
 export const userRegister = async (req: Request, res: Response) => {
   // #swagger.tags = ['Users']
   // #swagger.summary = '회원가입'
   const { username, email, password } = req.body;
 
-  plainToClass(userValidateDTO, req.body);
+  const userInput = plainToClass(userValidateDTO, req.body);
+
+  const errors = await validate(userInput);
+
+  if (errors.length > 0) {
+    throw generateError(500, '양식에 맞춰서 입력해주세요');
+  }
 
   // createUser 함수를 사용하여 새 사용자 생성
   const user = await createUser(req.body);
@@ -44,7 +51,14 @@ export const userLogin = async (req: IRequest, res: Response) => {
   // #swagger.summary = '로그인'
   const { email, password } = req.body;
 
-  plainToClass(userValidateDTO, req.body);
+  const userInput = plainToClass(userValidateDTO, req.body);
+
+  const errors = await validate(userInput);
+
+  if (errors.length > 0) {
+    throw generateError(500, '양식에 맞춰서 입력해주세요');
+  }
+  
   const myInfo = await prisma.user.findUnique({
     where: {
       id: req.user.id,
@@ -161,7 +175,13 @@ export const updateUser = async (req: IRequest, res: Response) => {
   const { email, username, description } = req.body;
 
   const userId = req.params.userId;
-  await plainToClass(userValidateDTO, req.body);
+  const userInput = plainToClass(userValidateDTO, req.body);
+
+  const errors = await validate(userInput);
+
+  if (errors.length > 0) {
+    throw generateError(500, '양식에 맞춰서 입력해주세요');
+  }
   // updateUserService 함수를 사용하여 사용자 정보 업데이트
   const updatedUser = await updateUserService(userId, req.body);
 
