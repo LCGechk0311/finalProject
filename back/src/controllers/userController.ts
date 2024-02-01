@@ -15,7 +15,7 @@ import {
   emailLinked,
   verifyToken,
   registerUser,
-} from '../services/authService';
+} from '../services/userService';
 import { generateAccessToken, verifyRefreshToken } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
 import { userValidateDTO } from '../dtos/userDTO';
@@ -23,7 +23,11 @@ import { plainToClass } from 'class-transformer';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { generateRefreshToken } from '../utils/tokenUtils';
 import { storeRefreshTokenInDatabase } from '../utils/tokenUtils';
+
+// 프리즈마 대체
 import { prisma } from '../../prisma/prismaClient';
+import { query } from '../utils/DB';
+
 import { generateError } from '../utils/errorGenerator';
 import { validate } from 'class-validator';
 
@@ -44,44 +48,6 @@ export const userRegister = async (req: Request, res: Response) => {
   const user = await createUser(req.body);
 
   return res.status(user.status).json(user);
-};
-
-export const userLogin = async (req: IRequest, res: Response) => {
-  // #swagger.tags = ['Users']
-  // #swagger.summary = '로그인'
-  const { email, password } = req.body;
-
-  const userInput = plainToClass(userValidateDTO, req.body);
-
-  const errors = await validate(userInput);
-
-  if (errors.length > 0) {
-    throw generateError(500, '양식에 맞춰서 입력해주세요');
-  }
-  
-  const myInfo = await prisma.user.findUnique({
-    where: {
-      id: req.user.id,
-    },
-    include: {
-      profileImage: true,
-    },
-  });
-  if (!myInfo) {
-    const response = emptyApiResponseDTO();
-    return response;
-  }
-  // 사용자 정보와 토큰 데이터를 사용하여 user 객체 생성
-  const user = {
-    token: req.token,
-    refreshToken: req.refreshTokens,
-    id: req.user.id,
-    name: req.user.username,
-    email: req.user.email,
-    profileImage: myInfo.profileImage,
-  };
-
-  return res.status(200).json({ data: user, message: '성공' });
 };
 
 export const getMyInfo = async (req: IRequest, res: Response) => {

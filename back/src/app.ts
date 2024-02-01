@@ -3,7 +3,8 @@ import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import swaggerFile from './swagger/swagger-output.json';
 import bodyParser from 'body-parser';
-import userAuthRouter from './routes/userRouter';
+import userRouter from './routes/userRouter';
+import authRouter from './routes/authRouter';
 import passport from 'passport';
 import diaryRouter from './routes/diaryRouter';
 import favoriteRouter from './routes/favoriteRouter';
@@ -65,7 +66,8 @@ app.get('/', (req: Request, res: Response) => {
 
 const apiRouter = express.Router();
 
-apiRouter.use('/users', userAuthRouter);
+apiRouter.use('/users', userRouter);
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/friend', friendRouter);
 apiRouter.use('/diary', diaryRouter);
 apiRouter.use('/favorites', favoriteRouter);

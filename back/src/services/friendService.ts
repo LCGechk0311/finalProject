@@ -1,4 +1,6 @@
 import { prisma } from '../../prisma/prismaClient';
+import { query } from '../utils/DB';
+
 import { FriendResponseDTO, PaginationResponseDTO } from '../dtos/friendDTO';
 import { userResponseDTO } from '../dtos/userDTO';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
@@ -220,6 +222,18 @@ export const getMyWholeFriends = async (userId: string) => {
       status: true,
     },
   });
+
+  // return friendList;
+
+  const sqlQuery = `
+    SELECT *
+    FROM Friend
+    WHERE (sentUserId = ? OR receivedUserId = ?) AND status = true
+  `;
+
+  const result = await query(sqlQuery, [userId, userId]);
+  console.log(result);
+  console.log(2);
   return friendList;
 };
 
