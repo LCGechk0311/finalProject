@@ -1,4 +1,4 @@
-import { Prisma, User } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { generateRandomPassowrd } from '../utils/password';
 import bcrypt from 'bcrypt';
 import { plainToClass } from 'class-transformer';
@@ -9,12 +9,13 @@ import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { getMyWholeFriends } from './friendService';
+import { IUser } from 'types/user';
 
 // prisma대체
 import { prisma } from '../../prisma/prismaClient';
 import { query } from '../utils/DB';
 
-export const createUser = async (inputData: Prisma.UserCreateInput) => {
+export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
 
   // 비밀번호를 해시하여 저장 (안전한 비밀번호 저장)
@@ -64,13 +65,13 @@ export const myInfo = async (userId: string) => {
 
   const sqlQuery = `
       SELECT * FROM user
-      WHERE id = ?;
+      WHERE id = ${userId};
     `;
 
   // 쿼리 실행을 비동기적으로 수행하기 위해 util.promisify를 사용
-  const results = await query(sqlQuery, [userId]);
+  const results = await query(sqlQuery);
 
-  const UserResponseDTO = plainToClass(userResponseDTO, myInfo, {
+  const UserResponseDTO = plainToClass(userResponseDTO, results, {
     excludeExtraneousValues: true,
   });
 
@@ -158,7 +159,7 @@ export const getAllUsers = async (
   }
 
   friendIds.push(userId);
-  const friendsWithIsFriend = userList.map((user: User) => {
+  const friendsWithIsFriend = userList.map((user: IUser) => {
     user.isFriend = friendIds.includes(user.id);
     return user;
   });
@@ -288,24 +289,40 @@ export const getMyFriends = async (
 
 export const getUserInfo = async (userId: string) => {
   // 사용자 ID를 기반으로 사용자 정보 조회
-  const userInfo = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    include: {
-      profileImage: true,
-    },
-  });
+  // const userInfo = await prisma.user.findUnique({
+  //   where: {
+  //     id: userId,
+  //   },
+  //   include: {
+  //     profileImage: true,
+  //   },
+  // });
+
+  const sqlQuery = `
+    SELECT user.*, fileUpload.*
+    FROM user
+    LEFT JOIN fileUpload ON user.id = fileUpload.userId
+    WHERE user.id = '${userId}';
+  `;
+
+  const userInfo = await query(sqlQuery);
   const response = successApiResponseDTO(userInfo);
   return response;
 };
 
 export const logout = async (userId: string) => {
-  await prisma.refreshToken.deleteMany({
-    where: {
-      userId: userId,
-    },
-  });
+  // await prisma.refreshToken.deleteMany({
+  //   where: {
+  //     userId: userId,
+  //   },
+  // });
+
+  const sqlQuery = `
+    DELETE FROM refreshToken
+    WHERE userId = '${userId}';
+  `;
+
+  await query(sqlQuery);
 };
 
 export const updateUserService = async (
@@ -329,6 +346,14 @@ export const updateUserService = async (
       },
     },
   });
+  
+  // const sqlQuery = `
+  //   UPDATE user
+  //   SET ${Object.keys(inputData).map(key => `${key} = '${inputData[key]}'`).join(', ')}
+  //   WHERE id = '${userId}';
+  // `;
+
+  // const [updatedUser] = await query(sqlQuery);
   const UserResponseDTO = plainToClass(userResponseDTO, updatedUser, {
     excludeExtraneousValues: true,
   });
@@ -337,43 +362,73 @@ export const updateUserService = async (
 };
 
 export const deleteUserService = async (userId: string) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
+  // const user = await prisma.user.findUnique({
+  //   where: { id: userId },
+  // });
 
-  if (!user) {
-    // 사용자를 찾을 수 없는 경우 적절한 오류 처리를 수행
+  // if (!user) {
+  //   // 사용자를 찾을 수 없는 경우 적절한 오류 처리를 수행
+  //   const response = emptyApiResponseDTO();
+  //   return response;
+  // }
+
+  // // 사용자의 refreshTokens 먼저 삭제
+  // await prisma.refreshToken.deleteMany({
+  //   where: {
+  //     userId: userId,
+  //   },
+  // });
+
+  // // 사용자의 친구 관계 삭제
+  // await prisma.friend.deleteMany({
+  //   where: {
+  //     OR: [{ sentUserId: userId }, { receivedUserId: userId }],
+  //   },
+  // });
+
+  // // 사용자의 다이어리 삭제
+  // await prisma.diary.deleteMany({
+  //   where: {
+  //     authorId: userId,
+  //   },
+  // });
+
+  // // 사용자 삭제
+  // await prisma.user.delete({
+  //   where: {
+  //     id: userId,
+  //   },
+  // });
+
+  const user = await query(`
+    SELECT * FROM user
+    WHERE id = '${userId}';
+  `);
+
+  if (!user || user.length === 0) {
     const response = emptyApiResponseDTO();
     return response;
   }
 
-  // 사용자의 refreshTokens 먼저 삭제
-  await prisma.refreshToken.deleteMany({
-    where: {
-      userId: userId,
-    },
-  });
+  await query(`
+    DELETE FROM refreshToken
+    WHERE userId = '${userId}';
+  `);
 
-  // 사용자의 친구 관계 삭제
-  await prisma.friend.deleteMany({
-    where: {
-      OR: [{ sentUserId: userId }, { receivedUserId: userId }],
-    },
-  });
+  await query(`
+    DELETE FROM friend
+    WHERE sentUserId = '${userId}' OR receivedUserId = '${userId}';
+  `);
 
-  // 사용자의 다이어리 삭제
-  await prisma.diary.deleteMany({
-    where: {
-      authorId: userId,
-    },
-  });
+  await query(`
+    DELETE FROM diary
+    WHERE authorId = '${userId}';
+  `);
 
-  // 사용자 삭제
-  await prisma.user.delete({
-    where: {
-      id: userId,
-    },
-  });
+  await query(`
+    DELETE FROM user
+    WHERE id = '${userId}';
+  `);
 };
 
 export const forgotUserPassword = async (email: string) => {
