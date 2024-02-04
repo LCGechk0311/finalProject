@@ -168,7 +168,7 @@ export const deleteUser = async (req: IRequest, res: Response) => {
   if (loginId !== userIdToDelete) {
     return res.status(403).json({ message: '권한이 없습니다.' });
   }
-
+  
   // deleteUserService 함수를 사용하여 사용자 삭제
   await deleteUserService(userIdToDelete);
 
