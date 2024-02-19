@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import jwtSecret from '../config/jwtSecret';
 import { prisma } from '../../prisma/prismaClient';
+import redisClient from './DB';
 
 // Access Token 생성 함수
 export const generateAccessToken = (user: {
@@ -27,6 +28,22 @@ export const generateRefreshToken = (user: {
   const refreshToken = jwt.sign({ id: user.id }, jwtSecret, {
     expiresIn: '30d', // 예: 30일
   });
+
+  redisClient.set(user.id, refreshToken);
+
+  redisClient
+    .get(user.id)
+    .then((refreshToken) => {
+      if (refreshToken) {
+        console.log('Refresh token found in Redis:', refreshToken);
+      } else {
+        console.log('no found : ', user.id);
+      }
+    })
+    .catch((error) => {
+      console.error('Error : ', error);
+    });
+
   return refreshToken;
 };
 
@@ -56,21 +73,36 @@ export const storeRefreshTokenInDatabase = async (
 };
 
 // Refresh Token의 유효성을 확인하고 사용자 ID 반환하는 함수
-export const verifyRefreshToken = async (refreshToken: string) => {
+export const verifyRefreshToken = async (userId: string, refreshToken: string) => {
   try {
-    // 데이터베이스에서 해당 Refresh Token을 찾기
-    const refreshTokenData = await prisma.refreshToken.findUnique({
-      where: {
-        token: refreshToken,
-      },
+    // // 데이터베이스에서 해당 Refresh Token을 찾기
+    // const refreshTokenData = await prisma.refreshToken.findUnique({
+    //   where: {
+    //     token: refreshToken,
+    //   },
+    // });
+
+    // if (!refreshTokenData) {
+    //   // 해당 Refresh Token이 데이터베이스에 없으면 null 반환
+    //   return null;
+    // }
+    // // Refresh Token이 있으면 해당 사용자 ID 반환
+    // return refreshTokenData.userId;
+
+    redisClient
+    .get(userId)
+    .then((refreshToken) => {
+      if (refreshToken) {
+        console.log('Refresh token found in Redis:', refreshToken);
+      } else {
+        console.log('no found : ', userId);
+      }
+    })
+    .catch((error) => {
+      console.error('Error : ', error);
     });
 
-    if (!refreshTokenData) {
-      // 해당 Refresh Token이 데이터베이스에 없으면 null 반환
-      return null;
-    }
-    // Refresh Token이 있으면 해당 사용자 ID 반환
-    return refreshTokenData.userId;
+    return userId;
   } catch (error) {
     throw error;
   }

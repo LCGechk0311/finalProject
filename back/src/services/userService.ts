@@ -13,7 +13,9 @@ import { IUser } from 'types/user';
 
 // prisma대체
 import { prisma } from '../../prisma/prismaClient';
-import { query } from '../utils/DB';
+import { query, execute } from '../utils/DB';
+
+import redisClient from '../utils/DB';
 
 export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
@@ -24,25 +26,23 @@ export const createUser = async (inputData: IUser) => {
     INSERT INTO user (id, username, password, email)
     VALUES (UUID(), ?, ?, ?);
   `;
-  const result = await query(sqlQuery, [username, hashedPassword, email]);
+  // const result = await query(sqlQuery, [username, hashedPassword, email]);
+
+  const result = await execute(sqlQuery, [username, hashedPassword, email]);
+
+  console.log(result);
 
   const userId = result.insertId;
   const selectQuery = `
     SELECT * FROM user WHERE id = ?;
   `;
 
-  const selectResult = await query(selectQuery, [userId]);
+  // const selectResult = await query(selectQuery, [userId]);
 
-  const insertedUser = selectResult[0];
+  // const insertedUser = selectResult[0];
 
-  // 사용자 생성 및 저장
-  // const user = await prisma.user.create({
-  //   data: { username, password: hashedPassword, email },
-  // });
-
-  // const UserResponseDTO = plainToClass(userResponseDTO, user, {
-  //   excludeExtraneousValues: true,
-  // });
+  const [insertedUser] = await execute(selectQuery, [userId]);
+  console.log([insertedUser]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, insertedUser, {
     excludeExtraneousValues: true,
@@ -287,16 +287,27 @@ export const getMyFriends = async (
   return response;
 };
 
+const getFromCache = async (userId: string) => {
+  return new Promise<any>((resolve, reject) => {
+    // redisClient.get(userId, (err: Error | null, data: string | null) => {
+    //   if (err) {
+    //     reject(err);
+    //   } else {
+    //     resolve(data ? JSON.parse(data) : null);
+    //   }
+    // });
+  });
+};
+
+const setToCache = async (userId: string, userInfo: any, ttl: number) => {
+  redisClient.setEx(userId, ttl, JSON.stringify(userInfo));
+};
+
 export const getUserInfo = async (userId: string) => {
-  // 사용자 ID를 기반으로 사용자 정보 조회
-  // const userInfo = await prisma.user.findUnique({
-  //   where: {
-  //     id: userId,
-  //   },
-  //   include: {
-  //     profileImage: true,
-  //   },
-  // });
+  const cachedUserInfo = await getFromCache(userId);
+  if (cachedUserInfo) {
+    return cachedUserInfo;
+  }
 
   const sqlQuery = `
     SELECT user.*, fileUpload.*
@@ -307,6 +318,8 @@ export const getUserInfo = async (userId: string) => {
 
   const userInfo = await query(sqlQuery);
   const response = successApiResponseDTO(userInfo);
+
+  await setToCache(userId, response, 3600);
   return response;
 };
 
@@ -400,35 +413,50 @@ export const deleteUserService = async (userId: string) => {
   //   },
   // });
 
-  const user = await query(`
+  const user = await query(
+    `
     SELECT * FROM user
     WHERE id = ?
-  `, [userId]);
+  `,
+    [userId],
+  );
 
   if (!user || user.length === 0) {
     const response = emptyApiResponseDTO();
     return response;
   }
 
-  await query(`
+  await query(
+    `
     DELETE FROM refreshToken
     WHERE userId = ?
-    `, [userId]);
+    `,
+    [userId],
+  );
 
-  await query(`
+  await query(
+    `
     DELETE FROM friend
     WHERE sentUserId = ? OR receivedUserId = ?
-    `, [userId, userId]);
+    `,
+    [userId, userId],
+  );
 
-  await query(`
+  await query(
+    `
     DELETE FROM diary
     WHERE authorId = ?
-    `, [userId]);
+    `,
+    [userId],
+  );
 
-  await query(`
+  await query(
+    `
     DELETE FROM user
     WHERE id = ?
-    `, [userId]);
+    `,
+    [userId],
+  );
 };
 
 export const forgotUserPassword = async (email: string) => {
@@ -611,7 +639,7 @@ export const emailLinked = async (email: string) => {
   // });
 
   const result = emailToken();
-  
+
   const sqlQuery = `
     INSERT INTO user (id, email, isVerified,verificationToken, verificationTokenExpires)
     VALUES (UUID(), ?, false, ?, ?);
@@ -701,8 +729,7 @@ export const registerUser = async (
   //   },
   // });
 
-  const updateUserQuery =
-    `UPDATE user SET username = ?, password = ? WHERE id = ?`;
+  const updateUserQuery = `UPDATE user SET username = ?, password = ? WHERE id = ?`;
 
   await query(updateUserQuery, [username, hashedPassword, user.id]);
 

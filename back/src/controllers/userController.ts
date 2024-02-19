@@ -27,6 +27,7 @@ import { storeRefreshTokenInDatabase } from '../utils/tokenUtils';
 // 프리즈마 대체
 import { prisma } from '../../prisma/prismaClient';
 import { query } from '../utils/DB';
+import redisClient from '../utils/DB';
 
 import { generateError } from '../utils/errorGenerator';
 import { validate } from 'class-validator';
@@ -216,7 +217,7 @@ export const refresh = async (req: IRequest, res: Response) => {
   }
 
   // Refresh Token을 사용하여 사용자 ID 확인
-  const userId = await verifyRefreshToken(refreshToken);
+  const userId = await verifyRefreshToken(req.user.id, refreshToken);
 
   if (!userId) {
     generateError(403, 'refreshToken이 유효하지않음');
@@ -228,8 +229,10 @@ export const refresh = async (req: IRequest, res: Response) => {
   const accessToken = generateAccessToken(user);
   // refreshToken 재발급
   const newRefreshToken = generateRefreshToken(user);
+
+  redisClient.set(userId, refreshToken);
   // 생성한 refreshToken DB에 저장
-  await storeRefreshTokenInDatabase(userId, newRefreshToken);
+  // await storeRefreshTokenInDatabase(userId, newRefreshToken);
 
   res.json({ data: { accessToken, newRefreshToken }, message: '성공' });
 };
