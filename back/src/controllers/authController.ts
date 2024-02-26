@@ -61,8 +61,6 @@ export const userLogin = async (req: IRequest, res: Response) => {
   
     // 인증 성공시 처리
     const user = {
-      token: req.token,
-      refreshToken: req.refreshTokens,
       id: results[0].id,
       name: results[0].username,
       email: results[0].email,

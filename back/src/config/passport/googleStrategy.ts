@@ -40,10 +40,10 @@ const googleStrategy = new GoogleStrategy(
       if (exUser) {
         // 사용자가 이미 존재하면 AccessToken과 RefreshToken을 생성
         const jwtAccessToken = generateAccessToken(exUser);
-        const jwtRefreshToken = generateRefreshToken(exUser);
+        const jwtRefreshToken = generateRefreshToken(exUser.id);
 
         // RefreshToken을 데이터베이스에 저장
-        await storeRefreshTokenInDatabase(exUser.id, jwtRefreshToken);
+        // await storeRefreshTokenInDatabase(exUser.id, jwtRefreshToken);
 
         // AccessToken과 RefreshToken을 클라이언트에게 전달
         done(null, {

@@ -31,6 +31,7 @@ import redisClient from '../utils/DB';
 
 import { generateError } from '../utils/errorGenerator';
 import { validate } from 'class-validator';
+import { setCookie } from '../utils/responseData';
 
 export const userRegister = async (req: Request, res: Response) => {
   // #swagger.tags = ['Users']
@@ -169,7 +170,7 @@ export const deleteUser = async (req: IRequest, res: Response) => {
   if (loginId !== userIdToDelete) {
     return res.status(403).json({ message: '권한이 없습니다.' });
   }
-  
+
   // deleteUserService 함수를 사용하여 사용자 삭제
   await deleteUserService(userIdToDelete);
 
@@ -209,18 +210,28 @@ export const refresh = async (req: IRequest, res: Response) => {
   // #swagger.tags = ['Users']
   // #swagger.summary = '리프레시 토큰'
 
-  const refreshToken = req.body.token;
+  // const refreshToken = req.body.token;
+
+  const cookiesString = req.headers.cookie;
+  const cookiesArray = cookiesString.split('; ');
+
+  let refreshToken;
+  cookiesArray.forEach((cookie) => {
+    const [name, value] = cookie.split('=');
+    if (name === 'newRefreshToken') {
+      refreshToken = value;
+    }
+  });
 
   if (!refreshToken) {
     const response = emptyApiResponseDTO();
     return response;
   }
-
   // Refresh Token을 사용하여 사용자 ID 확인
   const userId = await verifyRefreshToken(req.user.id, refreshToken);
-
+  console.log(userId);
   if (!userId) {
-    generateError(403, 'refreshToken이 유효하지않음');
+    throw generateError(403, 'refreshToken이 유효하지않음');
   }
 
   // 유저 정보 가져오고
@@ -228,13 +239,22 @@ export const refresh = async (req: IRequest, res: Response) => {
   // accessToken 재발급
   const accessToken = generateAccessToken(user);
   // refreshToken 재발급
-  const newRefreshToken = generateRefreshToken(user);
-
-  redisClient.set(userId, refreshToken);
+  const newRefreshToken = await generateRefreshToken(userId);
   // 생성한 refreshToken DB에 저장
   // await storeRefreshTokenInDatabase(userId, newRefreshToken);
 
-  res.json({ data: { accessToken, newRefreshToken }, message: '성공' });
+  // accessToken 쿠키 설정
+  setCookie(res, 'accessToken', accessToken.token, accessToken.expiresAt);
+
+  // newRefreshToken 쿠키 설정
+  setCookie(
+    res,
+    'newRefreshToken',
+    newRefreshToken.token,
+    newRefreshToken.expireIn,
+  );
+
+  res.json({ message: '성공' });
 };
 
 export const loginCallback = (req: IRequest, res: Response) => {

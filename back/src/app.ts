@@ -20,6 +20,7 @@ import { chat } from './utils/chat';
 import { Server as SocketIoServer } from 'socket.io';
 import { CronJob } from 'cron';
 import { updateAudioUrlsPeriodically } from './utils/music';
+import cookieParser from 'cookie-parser';
 
 const app: Express & { io?: any } = express();
 const server = http.createServer(app);
@@ -30,6 +31,7 @@ app.use(
   }),
 );
 
+app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(Logger);
 sendAlarm();

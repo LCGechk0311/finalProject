@@ -18,7 +18,9 @@ export const query = util.promisify(pool.query).bind(pool);
 export const execute = util.promisify(pool.execute).bind(pool);
 
 //* Redis 연결
-const redisClient = Redis.createClient();
+const redisClient = Redis.createClient({
+   disableOfflineQueue: true
+ });
 
 redisClient.connect();
 redisClient.on('connect', () => {

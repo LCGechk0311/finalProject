@@ -7,6 +7,7 @@ import {
   storeRefreshTokenInDatabase,
 } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
+import { setCookie } from '../utils/responseData';
 
 export const localAuthentication = (
   req: IRequest,
@@ -30,13 +31,21 @@ export const localAuthentication = (
 
         if (user) {
           const { token, expiresAt } = generateAccessToken(user);
-          const refreshToken = generateRefreshToken(user);
+
+          const refreshToken = await generateRefreshToken(user.id);
           // await storeRefreshTokenInDatabase(user.id, refreshToken);
 
-          req.token = token;
           req.user = user;
-          req.refreshTokens = [refreshToken];
-          req.expiresAt = expiresAt;
+          // accessToken 쿠키 설정
+          setCookie(res, 'accessToken', token, expiresAt);
+
+          // newRefreshToken 쿠키 설정
+          setCookie(
+            res,
+            'newRefreshToken',
+            refreshToken.token,
+            refreshToken.expireIn,
+          );
           return next();
         }
       },
