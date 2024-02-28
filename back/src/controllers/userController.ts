@@ -228,16 +228,13 @@ export const refresh = async (req: IRequest, res: Response) => {
     return response;
   }
   // Refresh Token을 사용하여 사용자 ID 확인
-  const userId = await verifyRefreshToken(req.user.id, refreshToken);
-  console.log(userId);
+  const userId = await verifyRefreshToken(refreshToken);
   if (!userId) {
     throw generateError(403, 'refreshToken이 유효하지않음');
   }
 
-  // 유저 정보 가져오고
-  const user = await getUserFromDatabase(userId);
   // accessToken 재발급
-  const accessToken = generateAccessToken(user);
+  const accessToken = generateAccessToken(userId);
   // refreshToken 재발급
   const newRefreshToken = await generateRefreshToken(userId);
   // 생성한 refreshToken DB에 저장

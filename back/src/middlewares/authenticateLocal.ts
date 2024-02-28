@@ -30,7 +30,7 @@ export const localAuthentication = (
         }
 
         if (user) {
-          const { token, expiresAt } = generateAccessToken(user);
+          const { token, expiresAt } = generateAccessToken(user.id);
 
           const refreshToken = await generateRefreshToken(user.id);
           // await storeRefreshTokenInDatabase(user.id, refreshToken);

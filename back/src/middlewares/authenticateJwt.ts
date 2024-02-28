@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import passport from 'passport';
 import { IRequest } from 'types/request';
 import { IUser } from 'types/user';
+import { verifyRefreshToken } from '../utils/tokenUtils';
 
 export const jwtAuthentication = async (
   req: IRequest,
@@ -12,15 +13,24 @@ export const jwtAuthentication = async (
     passport.authenticate(
       'jwt',
       { session: false },
-      (error: Error, user: IUser, info: any) => {
+      async (error: Error, user: IUser, info: any) => {
         if (error) {
           console.log(error);
           next(error);
         }
-        if (info ) {
-          if(info.name === 'TokenExpiredError'){
-            console.log(info);
-            res.status(401).json({ expired: true });
+        // if (info ) {
+        //   if(info.name === 'TokenExpiredError'){
+        //     console.log(info);
+        //     res.status(401).json({ expired: true });
+        //   }
+        // }
+        if (info) {
+          // Access Token 만료, Refresh Token 만료 여부 확인
+          const isRefreshTokenExpired = await verifyRefreshToken(req.cookies.newRefreshToken);
+          if (isRefreshTokenExpired) {
+            return res.status(401).json({ message: '갱신 필요' });
+          } else {
+            return res.status(401).json({ message: 'accesstoken만료' });
           }
         }
         req.user = user;

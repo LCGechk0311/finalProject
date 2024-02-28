@@ -98,7 +98,7 @@ userRouter.post(
 );
 
 // refresh token사용
-userRouter.post('/refresh-token', jwtAuthentication, wrapAsyncController(refresh));
+userRouter.post('/refresh-token', wrapAsyncController(refresh));
 
 // 소셜 로그인
 userRouter.get(
