@@ -22,12 +22,6 @@ import { userValidateDTO } from '../dtos/userDTO';
 import { plainToClass } from 'class-transformer';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { generateRefreshToken } from '../utils/tokenUtils';
-import { storeRefreshTokenInDatabase } from '../utils/tokenUtils';
-
-// 프리즈마 대체
-import { prisma } from '../../prisma/prismaClient';
-import { query } from '../utils/DB';
-import redisClient from '../utils/DB';
 
 import { generateError } from '../utils/errorGenerator';
 import { validate } from 'class-validator';
@@ -212,8 +206,7 @@ export const refresh = async (req: IRequest, res: Response) => {
 
   // const refreshToken = req.body.token;
 
-  const cookiesString = req.headers.cookie;
-  const cookiesArray = cookiesString.split('; ');
+  const cookiesArray = req.headers.cookie.split('; ');
 
   let refreshToken;
   cookiesArray.forEach((cookie) => {
@@ -237,8 +230,6 @@ export const refresh = async (req: IRequest, res: Response) => {
   const accessToken = generateAccessToken(userId);
   // refreshToken 재발급
   const newRefreshToken = await generateRefreshToken(userId);
-  // 생성한 refreshToken DB에 저장
-  // await storeRefreshTokenInDatabase(userId, newRefreshToken);
 
   // accessToken 쿠키 설정
   setCookie(res, 'accessToken', accessToken.token, accessToken.expiresAt);

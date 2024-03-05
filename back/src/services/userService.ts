@@ -8,7 +8,6 @@ import { calculatePageInfo } from '../utils/pageInfo';
 import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
-import { getMyWholeFriends } from './friendService';
 import { IUser } from 'types/user';
 
 // prisma대체
@@ -53,15 +52,6 @@ export const createUser = async (inputData: IUser) => {
 };
 
 export const myInfo = async (userId: string) => {
-  // 사용자 ID를 기반으로 내 정보 조회
-  // const myInfo = await prisma.user.findUnique({
-  //   where: {
-  //     id: userId,
-  //   },
-  //   include: {
-  //     profileImage: true,
-  //   },
-  // });
 
   const sqlQuery = `
       SELECT * FROM user
@@ -105,32 +95,6 @@ export const getAllUsers = async (
   const rows = await query(sqlQuery, [userId, userId, userId]);
 
   const friendIds = rows.map((row: { friendId: string }) => row.friendId);
-
-  // const userList = await prisma.user.findMany({
-  //   take: limit,
-  //   skip: (page - 1) * limit,
-  //   include: {
-  //     profileImage: true,
-  //   },
-  // });
-  // for (const user of userList) {
-  //   const firstDiary = await prisma.diary.findFirst({
-  //     where: {
-  //       authorId: user.id,
-  //     },
-  //     orderBy: {
-  //       createdDate: 'asc',
-  //     },
-  //   });
-  //   if (firstDiary) {
-  //     user.latestEmoji = firstDiary.emoji;
-  //   }
-  // }
-  // friendIds.push(userId);
-  // const friendsWithIsFriend = userList.map((friend) => {
-  //   friend.isFriend = friendIds.includes(friend.id);
-  //   return friend;
-  // });
 
   const userQuery = `
   SELECT user.*, profileImage.*
@@ -250,19 +214,6 @@ export const getMyFriends = async (
     }
   }
 
-  // for (const friend of friendsInfo) {
-  //   const firstDiary = await prisma.diary.findFirst({
-  //     where: {
-  //       authorId: friend.id,
-  //     },
-  //     orderBy: {
-  //       createdDate: 'asc',
-  //     },
-  //   });
-  //   if (firstDiary) {
-  //     friend.latestEmoji = firstDiary.emoji;
-  //   }
-  // }
   const friendsWithIsFriend = friendsInfo.map((friend) => {
     friend.isFriend = true; // 또는 false
     return friend;
@@ -324,12 +275,6 @@ export const getUserInfo = async (userId: string) => {
 };
 
 export const logout = async (userId: string) => {
-  // await prisma.refreshToken.deleteMany({
-  //   where: {
-  //     userId: userId,
-  //   },
-  // });
-
   const sqlQuery = `
     DELETE FROM refreshToken
     WHERE userId = '${userId}';
@@ -375,44 +320,6 @@ export const updateUserService = async (
 };
 
 export const deleteUserService = async (userId: string) => {
-  // const user = await prisma.user.findUnique({
-  //   where: { id: userId },
-  // });
-
-  // if (!user) {
-  //   // 사용자를 찾을 수 없는 경우 적절한 오류 처리를 수행
-  //   const response = emptyApiResponseDTO();
-  //   return response;
-  // }
-
-  // // 사용자의 refreshTokens 먼저 삭제
-  // await prisma.refreshToken.deleteMany({
-  //   where: {
-  //     userId: userId,
-  //   },
-  // });
-
-  // // 사용자의 친구 관계 삭제
-  // await prisma.friend.deleteMany({
-  //   where: {
-  //     OR: [{ sentUserId: userId }, { receivedUserId: userId }],
-  //   },
-  // });
-
-  // // 사용자의 다이어리 삭제
-  // await prisma.diary.deleteMany({
-  //   where: {
-  //     authorId: userId,
-  //   },
-  // });
-
-  // // 사용자 삭제
-  // await prisma.user.delete({
-  //   where: {
-  //     id: userId,
-  //   },
-  // });
-
   const user = await query(
     `
     SELECT * FROM user
@@ -460,14 +367,6 @@ export const deleteUserService = async (userId: string) => {
 };
 
 export const forgotUserPassword = async (email: string) => {
-  // 데이터베이스에서 사용자 이메일로 사용자 조회
-  // const user = await prisma.user.findUnique({ where: { email } });
-
-  // if (!user) {
-  //   const response = emptyApiResponseDTO();
-  //   return response;
-  // }
-
   const userQuery = `SELECT * FROM user WHERE email = ?`;
   const user = await query(userQuery, [email]);
 
@@ -482,12 +381,6 @@ export const forgotUserPassword = async (email: string) => {
 
   // 임시 비밀번호를 해시하여 저장
   const hashedPassword = await bcrypt.hash(tempPassword, saltRounds);
-
-  // 사용자의 비밀번호를 업데이트하여 초기화
-  // await prisma.user.update({
-  //   where: { email: email },
-  //   data: { password: hashedPassword },
-  // });
 
   const updatePasswordQuery = `UPDATE user SET password = ? WHERE email = ?`;
   await query(updatePasswordQuery, [hashedPassword, email]);
@@ -515,28 +408,11 @@ export const resetUserPassword = async (email: string, password: string) => {
   // 새로운 비밀번호를 해시하여 저장
   const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-  // 사용자의 비밀번호를 업데이트하여 재설정
-  // await prisma.user.update({
-  //   where: { email: email },
-  //   data: { password: hashedPassword },
-  // });
-
   const updatePasswordQuery = `UPDATE user SET password = ? WHERE email = ?`;
   await query(updatePasswordQuery, [hashedPassword, email]);
 };
 
 export const getUserFromDatabase = async (userId: string) => {
-  // 데이터베이스에서 해당 사용자 정보 조회
-  // const user = await prisma.user.findUnique({
-  //   where: {
-  //     id: userId,
-  //   },
-  //   select: {
-  //     id: true,
-  //     username: true,
-  //     email: true,
-  //   },
-  // });
 
   const sqlQuery = 'SELECT id, username, email FROM user WHERE id = ?';
 
@@ -553,36 +429,6 @@ export const getUsers = async (
   if (!field || (field !== 'username' && field !== 'email')) {
     throw { error: '올바른 필드 값을 지정하세요.' };
   }
-
-  // let where = {};
-  // if (field === 'username') {
-  //   where = {
-  //     username: {
-  //       contains: searchTerm,
-  //     },
-  //   };
-  // } else if (field === 'email') {
-  //   where = {
-  //     email: {
-  //       contains: searchTerm,
-  //     },
-  //   };
-  // }
-
-  // const searchResults = await prisma.user.findMany({
-  //   skip: (page - 1) * limit,
-  //   take: limit,
-  //   where,
-  //   include: {
-  //     profileImage: true,
-  //   },
-  // });
-
-  // const { totalItem, totalPage } = await calculatePageInfo(
-  //   'user',
-  //   limit,
-  //   where,
-  // );
 
   let whereCondition = '';
   let params: any = [];
@@ -631,12 +477,6 @@ export const getUsers = async (
 };
 
 export const emailLinked = async (email: string) => {
-  // const user = await prisma.user.create({
-  //   data: {
-  //     email,
-  //     isVerified: false,
-  //   },
-  // });
 
   const result = emailToken();
 
@@ -646,16 +486,6 @@ export const emailLinked = async (email: string) => {
   `;
 
   const user = await query(sqlQuery, [email, result.token, result.expires]);
-
-  // await prisma.user.update({
-  //   where: {
-  //     id: user.id,
-  //   },
-  //   data: {
-  //     verificationToken: result.token,
-  //     verificationTokenExpires: result.expires,
-  //   },
-  // });
 
   let baseUrl;
   if (process.env.NODE_ENV === 'development') {
@@ -706,9 +536,6 @@ export const registerUser = async (
   username: string,
   password: string,
 ) => {
-  // const user = await prisma.user.findUnique({
-  //   where: { email },
-  // });
 
   const userQuery = 'SELECT id, isVerified FROM user WHERE email = ?';
 
@@ -720,14 +547,6 @@ export const registerUser = async (
 
   // 비밀번호를 해시하여 저장 (안전한 비밀번호 저장)
   const hashedPassword = await bcrypt.hash(password, 10);
-
-  // await prisma.user.update({
-  //   where: { id: user.id },
-  //   data: {
-  //     username,
-  //     password: hashedPassword,
-  //   },
-  // });
 
   const updateUserQuery = `UPDATE user SET username = ?, password = ? WHERE id = ?`;
 

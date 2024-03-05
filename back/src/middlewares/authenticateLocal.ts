@@ -4,7 +4,6 @@ import { IUser } from 'types/user';
 import {
   generateAccessToken,
   generateRefreshToken,
-  storeRefreshTokenInDatabase,
 } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
 import { setCookie } from '../utils/responseData';
@@ -33,7 +32,6 @@ export const localAuthentication = (
           const { token, expiresAt } = generateAccessToken(user.id);
 
           const refreshToken = await generateRefreshToken(user.id);
-          // await storeRefreshTokenInDatabase(user.id, refreshToken);
 
           req.user = user;
           // accessToken 쿠키 설정

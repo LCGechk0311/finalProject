@@ -1,6 +1,5 @@
 import jwt from 'jsonwebtoken';
 import jwtSecret from '../config/jwtSecret';
-import { prisma } from '../../prisma/prismaClient';
 import redisClient from './DB';
 
 // Access Token 생성 함수
@@ -48,48 +47,10 @@ export const generateRefreshToken = async (userId: string) => {
   return { token: refreshToken, expireIn };
 };
 
-// Refresh Token을 데이터베이스에 저장하는 함수
-export const storeRefreshTokenInDatabase = async (
-  userId: string,
-  refreshToken: string,
-) => {
-  try {
-    // 기존 Refresh Token을 삭제
-    await prisma.refreshToken.deleteMany({
-      where: {
-        userId: userId,
-      },
-    });
-
-    // 새로운 Refresh Token 저장
-    await prisma.refreshToken.create({
-      data: {
-        userId,
-        token: refreshToken,
-      },
-    });
-  } catch (error) {
-    throw error;
-  }
-};
-
 // Refresh Token의 유효성을 확인하고 사용자 ID 반환하는 함수
 export const verifyRefreshToken = async (
   refreshToken: string,
 ) => {
-  // // 데이터베이스에서 해당 Refresh Token을 찾기
-  // const refreshTokenData = await prisma.refreshToken.findUnique({
-  //   where: {
-  //     token: refreshToken,
-  //   },
-  // });
-
-  // if (!refreshTokenData) {
-  //   // 해당 Refresh Token이 데이터베이스에 없으면 null 반환
-  //   return null;
-  // }
-  // // Refresh Token이 있으면 해당 사용자 ID 반환
-  // return refreshTokenData.userId;
   try {
     // refreshToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjAzZjdiN2YwLWMzMTEtMTFlZS1hNjhjLWIwMjVhYTM2OGEzMyIsImlhdCI6MTcwOTExMjYzMCwiZXhwIjoxNzExNzA0NjMwfQ.YXbsk8UJ4hpplHICCJety7YEKrVnTfKok4Mfqa5g_z0';
     return redisClient

@@ -18,13 +18,8 @@ export const jwtAuthentication = async (
           console.log(error);
           next(error);
         }
-        // if (info ) {
-        //   if(info.name === 'TokenExpiredError'){
-        //     console.log(info);
-        //     res.status(401).json({ expired: true });
-        //   }
-        // }
         if (info) {
+          // accesstoken 추가 관련 시나리오 추가
           // Access Token 만료, Refresh Token 만료 여부 확인
           const isRefreshTokenExpired = await verifyRefreshToken(req.cookies.newRefreshToken);
           if (isRefreshTokenExpired) {
