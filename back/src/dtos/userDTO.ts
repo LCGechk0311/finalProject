@@ -62,7 +62,7 @@ export class userValidateDTO {
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description: string;
 
   @IsOptional()
   @IsString({ each: true })

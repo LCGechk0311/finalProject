@@ -18,6 +18,8 @@ import redisClient from '../utils/DB';
 
 export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
+  console.log(inputData);
+  console.log(1111111);
 
   // 비밀번호를 해시하여 저장 (안전한 비밀번호 저장)
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -25,23 +27,19 @@ export const createUser = async (inputData: IUser) => {
     INSERT INTO user (id, username, password, email)
     VALUES (UUID(), ?, ?, ?);
   `;
-  // const result = await query(sqlQuery, [username, hashedPassword, email]);
 
-  const result = await execute(sqlQuery, [username, hashedPassword, email]);
+  await query(sqlQuery, [username, hashedPassword, email]);
+  // const result = await execute(sqlQuery, [username, hashedPassword, email]);
 
-  console.log(result);
-
-  const userId = result.insertId;
   const selectQuery = `
-    SELECT * FROM user WHERE id = ?;
+    SELECT * FROM user WHERE email = ?;
   `;
 
-  // const selectResult = await query(selectQuery, [userId]);
+  const selectResult = await query(selectQuery, [email]);
 
-  // const insertedUser = selectResult[0];
+  const insertedUser = selectResult[0];
 
-  const [insertedUser] = await execute(selectQuery, [userId]);
-  console.log([insertedUser]);
+  // const [insertedUser] = await execute(selectQuery, [userId]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, insertedUser, {
     excludeExtraneousValues: true,

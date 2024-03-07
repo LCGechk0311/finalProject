@@ -32,18 +32,19 @@ export const userRegister = async (req: Request, res: Response) => {
   // #swagger.summary = '회원가입'
   const { username, email, password } = req.body;
 
-  const userInput = plainToClass(userValidateDTO, req.body);
+  // const userInput = plainToClass(userValidateDTO, req.body);
 
-  const errors = await validate(userInput);
+  // const errors = await validate(userInput);
 
-  if (errors.length > 0) {
-    throw generateError(500, '양식에 맞춰서 입력해주세요');
-  }
+  // if (errors.length > 0) {
+  //   throw generateError(500, '양식에 맞춰서 입력해주세요');
+  // }
 
   // createUser 함수를 사용하여 새 사용자 생성
+  
   const user = await createUser(req.body);
 
-  return res.status(user.status).json(user);
+  return res.status(200).json(user);
 };
 
 export const getMyInfo = async (req: IRequest, res: Response) => {
