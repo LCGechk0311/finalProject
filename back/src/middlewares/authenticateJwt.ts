@@ -14,21 +14,20 @@ export const jwtAuthentication = async (
       'jwt',
       { session: false },
       async (error: Error, user: IUser, info: any) => {
-        // 1
         if (error) {
-          console.log(error);
+          // console.log(error);
           next(error);
         }
         if (info) {
           // accesstoken 추가 관련 시나리오 추가
           // Access Token 만료, Refresh Token 만료 여부 확인
+          console.log(info);
           const isRefreshTokenExpired = await verifyRefreshToken(req.cookies.newRefreshToken);
-          // 2
+
           if (isRefreshTokenExpired) {
             return res.status(401).json({ message: '갱신 필요' });
-            // 3
           } else {
-            return res.status(401).json({ message: 'accesstoken만료' });
+            return res.status(401).json({ message: 'refreshToken만료' });
           }
         }
         req.user = user;
@@ -36,7 +35,7 @@ export const jwtAuthentication = async (
       },
     )(req, res, next);
   } catch (error) {
-    console.log(error);
+    // console.log(error);
     next(error);
   }
 };

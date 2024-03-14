@@ -19,16 +19,18 @@ export const localAuthentication = (
       { session: false },
       async (error: Error, user: IUser, info: any) => {
         if (error) {
-          console.log(error);
+          // console.log(error);
           next(error);
         }
-
+        // 2
         if (info) {
+          console.log(2);
           console.log(info);
           next(info);
         }
-
+        // 3
         if (user) {
+          console.log(1);
           const { token, expiresAt } = generateAccessToken(user.id);
 
           const refreshToken = await generateRefreshToken(user.id);

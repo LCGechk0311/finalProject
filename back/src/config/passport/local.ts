@@ -19,6 +19,7 @@ const localStrategy = new LocalStrategy(
                     email,
                 },
             });
+            console.log(33333333);
 
             if (!user){
                 return done(null, false, {message : '사용자를 찾을 수 없습니다.'});
