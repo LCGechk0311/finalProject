@@ -21,7 +21,6 @@ export const jwtAuthentication = async (
         if (info) {
           // accesstoken 추가 관련 시나리오 추가
           // Access Token 만료, Refresh Token 만료 여부 확인
-          console.log(info);
           const isRefreshTokenExpired = await verifyRefreshToken(req.cookies.newRefreshToken);
 
           if (isRefreshTokenExpired) {

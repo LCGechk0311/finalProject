@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 import ytdl from 'ytdl-core';
-import { prisma } from '../../prisma/prismaClient';
+import { query } from './DB';
 
 const youtubeApiKey = process.env.youtubeApiKey;
 
@@ -64,13 +64,18 @@ function getDurationInSeconds(isoDuration: string): number {
 
 export async function updateAudioUrlsPeriodically() {
   try {
-    const emojiTypes = await prisma.emoji.findMany({
-      distinct: ['type'],
-      select: {
-        type: true,
-      },
-    });
-    console.log(emojiTypes);
+    // const emojiTypes = await prisma.emoji.findMany({
+    //   distinct: ['type'],
+    //   select: {
+    //     type: true,
+    //   },
+    // });
+
+    const emojiTypesQuery = `
+      SELECT DISTINCT type FROM emoji;
+    `;
+    const emojiTypes = await query(emojiTypesQuery);
+
 
     for (const emojiType of emojiTypes) {
       const musicData = await searchMusic(emojiType.type);
@@ -81,14 +86,18 @@ export async function updateAudioUrlsPeriodically() {
         filter: 'audioonly',
       }).url;
 
-      await prisma.emoji.updateMany({
-        where: {
-          type: emojiType.type,
-        },
-        data: {
-          audioUrl,
-        },
-      });
+      // await prisma.emoji.updateMany({
+      //   where: {
+      //     type: emojiType.type,
+      //   },
+      //   data: {
+      //     audioUrl,
+      //   },
+      // });
+      const updateQuery = `
+        UPDATE emoji SET audioUrl = ? WHERE type = ?;
+      `;
+      await query(updateQuery, [audioUrl, emojiType.type]);
 
       console.log(`오디오 URL이 갱신되었습니다.`);
     }

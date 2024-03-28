@@ -1,12 +1,10 @@
 import passport from 'passport';
 import { Response, NextFunction } from 'express';
 import { IUser } from 'types/user';
-import {
-  generateAccessToken,
-  generateRefreshToken,
-} from '../utils/tokenUtils';
+import { generateAccessToken, generateRefreshToken } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
 import { setCookie } from '../utils/responseData';
+import { redisSetAsync } from '../utils/DB';
 
 export const localAuthentication = (
   req: IRequest,
@@ -22,15 +20,11 @@ export const localAuthentication = (
           // console.log(error);
           next(error);
         }
-        // 2
         if (info) {
-          console.log(2);
-          console.log(info);
+          // console.log(info);
           next(info);
         }
-        // 3
         if (user) {
-          console.log(1);
           const { token, expiresAt } = generateAccessToken(user.id);
 
           const refreshToken = await generateRefreshToken(user.id);
@@ -47,6 +41,49 @@ export const localAuthentication = (
             refreshToken.expireIn,
           );
           return next();
+        }
+      },
+    )(req, res, next);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const sessionLocalAuthentication = (
+  req: IRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    passport.authenticate(
+      'local',
+      { session: true },
+      async (error: Error, user: IUser, info: any) => {
+        if (error) {
+          next(error);
+        }
+        if (info) {
+          console.log(info);
+          console.log('Session ID:', req.sessionID);
+          next(info);
+        }
+        const sessionData = {
+          userId: user.id,
+          displayName: user.username,
+        };
+        try {
+          await redisSetAsync(
+            `session:${req.sessionID}`,
+            JSON.stringify(sessionData),
+          );
+          req.user = user;
+          req.session.is_logined = true;
+          req.session.userId = user.id;
+          req.session.dispayName = user.username;
+          console.log('Session ID:', req.sessionID);
+          return next();
+        } catch (error) {
+          next(error);
         }
       },
     )(req, res, next);

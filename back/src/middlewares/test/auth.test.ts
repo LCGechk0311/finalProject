@@ -2,11 +2,18 @@ import { jwtAuthentication } from '../authenticateJwt';
 import passport from 'passport';
 import { Request, Response, NextFunction } from 'express';
 import { IRequest } from 'types/request';
-import redisClient from '../../utils/DB';
-import { verifyRefreshToken, generateAccessToken, generateRefreshToken } from '../../utils/tokenUtils';
+import {
+  verifyRefreshToken,
+  generateAccessToken,
+  generateRefreshToken,
+} from '../../utils/tokenUtils';
 import { localAuthentication } from '../authenticateLocal';
 import { IUser } from 'types/user';
 import { setCookie } from '../../utils/responseData';
+import googleStrategy from '../../config/passport/googleStrategy';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { loginCallback } from '../../controllers/userController';
+import { query } from '../../utils/DB';
 
 const req: any = {};
 const res: any = {
@@ -16,7 +23,16 @@ const res: any = {
 const next: NextFunction = jest.fn();
 
 jest.mock('passport', () => ({
+  use: jest.fn(),
   authenticate: jest.fn(),
+}));
+
+jest.mock('dotenv', () => ({
+  config: jest.fn(),
+}));
+
+jest.mock('../../utils/DB', () => ({
+  query: jest.fn(),
 }));
 
 jest.mock('../../utils/tokenUtils', () => ({
@@ -26,7 +42,7 @@ jest.mock('../../utils/tokenUtils', () => ({
 }));
 
 jest.mock('../../utils/responseData', () => ({
-    setCookie: jest.fn(),
+  setCookie: jest.fn(),
 }));
 
 describe('jwtAuthentication', () => {
@@ -70,7 +86,6 @@ describe('jwtAuthentication', () => {
         return callback(null, user, null);
       },
     );
-    // (verifyRefreshToken as jest.Mock).mockResolvedValueOnce(false);
 
     await jwtAuthentication(req, res, next);
 
@@ -98,20 +113,20 @@ describe('localAuthentication', () => {
     jest.clearAllMocks();
   });
 
-    it('Passport 모듈의 authenticate 함수가 에러를 반환', async () => {
-      const error = new Error('Authentication error');
-      (passport.authenticate as jest.Mock).mockImplementationOnce(
-        (strategy: any, options: any, callback: any) => {
-          return callback(error, null, null);
-        },
-      );
+  it('Passport 모듈의 authenticate 함수가 에러를 반환', async () => {
+    const error = new Error('Authentication error');
+    (passport.authenticate as jest.Mock).mockImplementationOnce(
+      (strategy: any, options: any, callback: any) => {
+        return callback(error, null, null);
+      },
+    );
 
-      await jwtAuthentication(req, res, next);
+    await jwtAuthentication(req, res, next);
 
-      expect(next).toHaveBeenCalledWith(error);
-    });
+    expect(next).toHaveBeenCalledWith(error);
+  });
 
-  it('사용자의 정보가 없을 경우', async () => {
+  it('사용자의 정보가 없을 경우', () => {
     const info = {
       status: 404,
       message: '사용자를 찾을 수 없습니다.',
@@ -124,13 +139,13 @@ describe('localAuthentication', () => {
       },
     );
 
-    await localAuthentication(req as IRequest, res, next);
+    localAuthentication(req as IRequest, res, next);
 
     expect(passport.authenticate).toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith(info);
   });
 
-  it('비밀번호가 불일치하는 경우', async () => {
+  it('비밀번호가 불일치하는 경우', () => {
     const info = {
       status: 403,
       message: '비밀번호가 일치하지 않습니다. ',
@@ -143,14 +158,18 @@ describe('localAuthentication', () => {
       },
     );
 
-    await localAuthentication(req as IRequest, res, next);
+    localAuthentication(req as IRequest, res, next);
 
     expect(passport.authenticate).toHaveBeenCalled();
     expect(next).toHaveBeenCalledWith(info);
   });
 
   it('유저 정보', async () => {
-    const user = { id: 'mockUserId', username: 'mockUsername' };
+    const user = {
+      email: 'mock@email.com',
+      username: 'mockUsername',
+      password: '1111',
+    };
     (passport.authenticate as jest.Mock).mockImplementationOnce(
       (strategy: any, options: any, callback: any) => {
         return callback(null, user, null);
@@ -168,15 +187,131 @@ describe('localAuthentication', () => {
   });
 });
 
-// beforeAll(() => {
-//   // Redis 클라이언트가 이미 연결되어 있는지 확인
-//   if (!redisClient.connect) {
-//     // Redis 클라이언트가 연결되어 있지 않으면 연결 시도
-//     redisClient.connect();
-//   }
-// });
+describe('구글 소셜 로그인', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
 
-// afterAll(() => {
-//   // Redis 연결 닫기
-//   redisClient.quit();
-// });
+  it('로그인 요청 성공 시', async () => {
+    // 로그인 콜백 요청을 시뮬레이션
+    const req = {};
+    const res: any = {
+      redirect: jest.fn(),
+      status: jest.fn(),
+      json: jest.fn(),
+    };
+
+    // 로그인 콜백을 호출
+    loginCallback(req as IRequest, res);
+
+    // 로그인 성공 후 홈페이지로 리다이렉션 되는지 확인
+    expect(res.redirect).toHaveBeenCalledWith('/');
+  });
+
+  // it('인증 성공', () => {
+  //   const mockedGoogleStrategy = new GoogleStrategy(
+  //     {
+  //       clientID: 'mockedClientId',
+  //       clientSecret: 'mockedClientSecret',
+  //       callbackURL: '/api/users/google/callback',
+  //     },
+  //     jest.fn(),
+  //   );
+
+  //   (passport.use as jest.Mock).mockImplementationOnce((strategyName, options) => {
+  //     expect(strategyName).toBe('google');
+  //     expect(options.scope).toEqual([
+  //       'https://www.googleapis.com/auth/userinfo.email',
+  //       'https://www.googleapis.com/auth/userinfo.profile',
+  //     ]);
+  //     options.callback('mockedAccessToken', 'mockedRefreshToken', {}, () => {});
+  //   });
+
+  //   passport.use(mockedGoogleStrategy);
+
+  //   expect(passport.authenticate).toHaveBeenCalled();
+  // });
+
+  // it('등록된 사용자가 있는 경우', async () => {
+  //   const profile = {
+  //     emails: [{ value: 'test@example.com' }],
+  //   };
+
+  //   const exUser = { id: 1 };
+
+  //   (query as jest.Mock).mockResolvedValueOnce([exUser]);
+
+  //   (generateAccessToken as jest.Mock).mockReturnValueOnce('mockedAccessToken');
+  //   (generateRefreshToken as jest.Mock).mockResolvedValueOnce(
+  //     'mockedRefreshToken',
+  //   );
+
+  //   const done = jest.fn();
+
+  //   await passport.authenticate('google', { session: false })(null, null, profile, done);
+
+  //   // 데이터베이스 쿼리 확인
+  //   expect(query).toHaveBeenCalledWith(expect.any(String), ['test@example.com']);
+
+  //   // 토큰 생성 확인
+  //   expect(generateAccessToken).toHaveBeenCalledWith(1);
+  //   expect(generateRefreshToken).toHaveBeenCalledWith(1);
+
+  //   // done 콜백 확인
+  //   expect(done).toHaveBeenCalledWith(null, {
+  //     accessToken: 'mockedAccessToken',
+  //     refreshToken: 'mockedRefreshToken',
+  //   });
+  // });
+
+  // it('should fail authentication when user does not exist', async () => {
+  //   const profile = {
+  //     emails: [{ value: 'test@example.com' }],
+  //   };
+
+  //   query.mockResolvedValueOnce([]);
+
+  //   const done = jest.fn();
+
+  //   const strategyCallback = passport.use.mock.calls[0][0].verify;
+
+  //   // Call the strategy callback function directly
+  //   await strategyCallback(
+  //     'mockedAccessToken',
+  //     'mockedRefreshToken',
+  //     profile,
+  //     done,
+  //   );
+
+  //   expect(query).toHaveBeenCalledWith(expect.any(String), [
+  //     'test@example.com',
+  //   ]);
+  //   expect(done).toHaveBeenCalledWith(null, null);
+  // });
+
+  // it('should handle errors during authentication', async () => {
+  //   const profile = {
+  //     emails: [{ value: 'test@example.com' }],
+  //   };
+
+  //   const error = new Error('Test error');
+
+  //   query.mockRejectedValueOnce(error);
+
+  //   const done = jest.fn();
+
+  //   await expect(
+  //     googleStrategy._verify(
+  //       'mockedAccessToken',
+  //       'mockedRefreshToken',
+  //       profile,
+  //       done,
+  //     ),
+  //   ).rejects.toThrow(error);
+
+  //   expect(query).toHaveBeenCalledWith(expect.any(String), [
+  //     'test@example.com',
+  //   ]);
+  //   expect(done).not.toHaveBeenCalled();
+  // });
+});

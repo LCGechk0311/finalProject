@@ -21,6 +21,15 @@ import { Server as SocketIoServer } from 'socket.io';
 import { CronJob } from 'cron';
 import { updateAudioUrlsPeriodically } from './utils/music';
 import cookieParser from 'cookie-parser';
+import { sessionMiddleware } from './utils/DB';
+
+declare module 'express-session' {
+  export interface SessionData {
+    is_logined?: boolean;
+    dispayName?: string;
+    userId?: string;
+  }
+}
 
 const app: Express & { io?: any } = express();
 const server = http.createServer(app);
@@ -45,6 +54,7 @@ const googleStrategyInstance = googleStrategy;
 passport.use('local', localStrategyInstance);
 passport.use('jwt', jwtStrategyInstance);
 passport.use('google', googleStrategyInstance);
+app.use(sessionMiddleware);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

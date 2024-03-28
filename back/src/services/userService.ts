@@ -1,4 +1,3 @@
-import { Prisma } from '@prisma/client';
 import { generateRandomPassowrd } from '../utils/password';
 import bcrypt from 'bcrypt';
 import { plainToClass } from 'class-transformer';
@@ -9,17 +8,10 @@ import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { IUser } from 'types/user';
-
-// prisma대체
-import { prisma } from '../../prisma/prismaClient';
-import { query, execute } from '../utils/DB';
-
-import redisClient from '../utils/DB';
+import { query, redisDelAsync } from '../utils/DB';
 
 export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
-  console.log(inputData);
-  console.log(1111111);
 
   // 비밀번호를 해시하여 저장 (안전한 비밀번호 저장)
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -29,7 +21,6 @@ export const createUser = async (inputData: IUser) => {
   `;
 
   await query(sqlQuery, [username, hashedPassword, email]);
-  // const result = await execute(sqlQuery, [username, hashedPassword, email]);
 
   const selectQuery = `
     SELECT * FROM user WHERE email = ?;
@@ -38,8 +29,6 @@ export const createUser = async (inputData: IUser) => {
   const selectResult = await query(selectQuery, [email]);
 
   const insertedUser = selectResult[0];
-
-  // const [insertedUser] = await execute(selectQuery, [userId]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, insertedUser, {
     excludeExtraneousValues: true,
@@ -50,7 +39,6 @@ export const createUser = async (inputData: IUser) => {
 };
 
 export const myInfo = async (userId: string) => {
-
   const sqlQuery = `
       SELECT * FROM user
       WHERE id = ?;
@@ -72,14 +60,6 @@ export const getAllUsers = async (
   page: number,
   limit: number,
 ) => {
-  // const friendList = await getMyWholeFriends(userId);
-
-  // const friendIds = friendList.map((friend) => {
-  //   return userId == friend.sentUserId
-  //     ? friend.receivedUserId
-  //     : friend.sentUserId;
-  // });
-
   const sqlQuery = `
   SELECT
     CASE
@@ -150,14 +130,6 @@ export const getMyFriends = async (
   page: number,
   limit: number,
 ) => {
-  // const friendList = await getMyWholeFriends(userId);
-
-  // const friendIds = friendList.map((friend) => {
-  //   return userId == friend.sentUserId
-  //     ? friend.receivedUserId
-  //     : friend.sentUserId;
-  // });
-
   const sqlQuery = `
   SELECT
     CASE
@@ -172,18 +144,27 @@ export const getMyFriends = async (
 
   const friendIds = rows.map((row: { friendId: string }) => row.friendId);
 
-  const friendsInfo = await prisma.user.findMany({
-    take: limit,
-    skip: (page - 1) * limit,
-    where: {
-      id: {
-        in: friendIds, // 친구의 ID 목록
-      },
-    },
-    include: {
-      profileImage: true,
-    },
-  });
+  // const friendsInfo = await prisma.user.findMany({
+  //   take: limit,
+  //   skip: (page - 1) * limit,
+  //   where: {
+  //     id: {
+  //       in: friendIds,
+  //     },
+  //   },
+  //   include: {
+  //     profileImage: true,
+  //   },
+  // });
+
+  const sqlQuery1 = `
+    SELECT * FROM user 
+    WHERE id IN (${friendIds.map(() => '?').join(', ')})
+    LIMIT ?
+    OFFSET ?;
+  `;
+
+  const friendsInfo = await query(sqlQuery1, [...friendIds, limit, (page - 1) * limit]);
 
   const friendQuery = `
   SELECT user.*, profileImage.*
@@ -212,7 +193,7 @@ export const getMyFriends = async (
     }
   }
 
-  const friendsWithIsFriend = friendsInfo.map((friend) => {
+  const friendsWithIsFriend = friendsInfo.map((friend : any) => {
     friend.isFriend = true; // 또는 false
     return friend;
   });
@@ -222,7 +203,7 @@ export const getMyFriends = async (
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
 
-  const userResponseDataList = friendsWithIsFriend.map((user) =>
+  const userResponseDataList = friendsWithIsFriend.map((user : any) =>
     plainToClass(userResponseDTO, user, { excludeExtraneousValues: true }),
   );
 
@@ -236,80 +217,73 @@ export const getMyFriends = async (
   return response;
 };
 
-const getFromCache = async (userId: string) => {
-  return new Promise<any>((resolve, reject) => {
-    // redisClient.get(userId, (err: Error | null, data: string | null) => {
-    //   if (err) {
-    //     reject(err);
-    //   } else {
-    //     resolve(data ? JSON.parse(data) : null);
-    //   }
-    // });
-  });
-};
-
-const setToCache = async (userId: string, userInfo: any, ttl: number) => {
-  redisClient.setEx(userId, ttl, JSON.stringify(userInfo));
-};
+export const logout = async (userId: string) => {
+  const sessionKey = `session:${userId}`;
+  
+  try {
+    // Redis에서 세션 데이터 삭제
+    const deletedCount = await redisDelAsync(sessionKey);
+    
+    if (deletedCount === 1) {
+      console.log('세션 삭제 완료');
+    } else {
+      console.log('세션 찾을 수 없음');
+    }
+  } catch (error) {
+    console.error('세션 삭제 실패:', error);
+  }
+}
 
 export const getUserInfo = async (userId: string) => {
-  const cachedUserInfo = await getFromCache(userId);
-  if (cachedUserInfo) {
-    return cachedUserInfo;
-  }
-
   const sqlQuery = `
     SELECT user.*, fileUpload.*
     FROM user
     LEFT JOIN fileUpload ON user.id = fileUpload.userId
-    WHERE user.id = '${userId}';
+    WHERE user.id = ?;
   `;
 
-  const userInfo = await query(sqlQuery);
-  const response = successApiResponseDTO(userInfo);
+  const userInfo = await query(sqlQuery, [userId]);
 
-  await setToCache(userId, response, 3600);
+  const UserResponseDTO = plainToClass(userResponseDTO, userInfo, {
+    excludeExtraneousValues: true,
+  });
+  const response = successApiResponseDTO(UserResponseDTO);
+
   return response;
 };
 
-export const logout = async (userId: string) => {
-  const sqlQuery = `
-    DELETE FROM refreshToken
-    WHERE userId = '${userId}';
-  `;
-
-  await query(sqlQuery);
-};
-
-export const updateUserService = async (
-  userId: string,
-  inputData: Prisma.UserUpdateInput,
-) => {
+export const updateUserService = async (userId: string, inputData: any) => {
   if (inputData.password) {
     delete inputData.password; // 비밀번호는 여기서 업데이트하지 않음
   }
 
-  const updatedUser = await prisma.user.update({
-    where: {
-      id: userId,
-    },
-    data: inputData,
-    include: {
-      profileImage: {
-        select: {
-          url: true, // url 필드만 선택
-        },
-      },
-    },
-  });
+  let updatedFields = '';
 
-  // const sqlQuery = `
-  //   UPDATE user
-  //   SET ${Object.keys(inputData).map(key => `${key} = '${inputData[key]}'`).join(', ')}
-  //   WHERE id = '${userId}';
-  // `;
+  const fieldsToUpdate = Object.entries(inputData)
+    .filter(([key, value]) => value !== undefined)
+    .map(([key, value]) => `${key} = '${value}'`);
 
-  // const [updatedUser] = await query(sqlQuery);
+  if (fieldsToUpdate.length > 0) {
+    updatedFields = fieldsToUpdate.join(', ');
+  } else {
+    updatedFields = 'id = id';
+  }
+
+  const sqlQuery = `
+    UPDATE user
+    SET ${updatedFields}
+    WHERE id = ?;
+  `;
+  await query(sqlQuery, [userId]);
+
+  const selectQuery = `
+    SELECT * FROM user WHERE id = ?;
+  `;
+
+  const selectResult = await query(selectQuery, [userId]);
+
+  const updatedUser = selectResult[0];
+
   const UserResponseDTO = plainToClass(userResponseDTO, updatedUser, {
     excludeExtraneousValues: true,
   });
@@ -318,27 +292,6 @@ export const updateUserService = async (
 };
 
 export const deleteUserService = async (userId: string) => {
-  const user = await query(
-    `
-    SELECT * FROM user
-    WHERE id = ?
-  `,
-    [userId],
-  );
-
-  if (!user || user.length === 0) {
-    const response = emptyApiResponseDTO();
-    return response;
-  }
-
-  await query(
-    `
-    DELETE FROM refreshToken
-    WHERE userId = ?
-    `,
-    [userId],
-  );
-
   await query(
     `
     DELETE FROM friend
@@ -370,6 +323,8 @@ export const forgotUserPassword = async (email: string) => {
 
   if (user.length === 0) {
     const response = emptyApiResponseDTO();
+    console.log(1);
+    console.log(response);
     return response;
   }
 
@@ -393,14 +348,6 @@ export const forgotUserPassword = async (email: string) => {
 };
 
 export const resetUserPassword = async (email: string, password: string) => {
-  // 데이터베이스에서 사용자 이메일로 사용자 조회
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (!user) {
-    const response = emptyApiResponseDTO();
-    return response;
-  }
-
   const saltRounds = 10;
 
   // 새로운 비밀번호를 해시하여 저장
@@ -410,24 +357,12 @@ export const resetUserPassword = async (email: string, password: string) => {
   await query(updatePasswordQuery, [hashedPassword, email]);
 };
 
-export const getUserFromDatabase = async (userId: string) => {
-
-  const sqlQuery = 'SELECT id, username, email FROM user WHERE id = ?';
-
-  const user = await query(sqlQuery, [userId]);
-  return user;
-};
-
 export const getUsers = async (
   searchTerm: string,
   field: string,
   page: number,
   limit: number,
 ) => {
-  if (!field || (field !== 'username' && field !== 'email')) {
-    throw { error: '올바른 필드 값을 지정하세요.' };
-  }
-
   let whereCondition = '';
   let params: any = [];
 
@@ -475,7 +410,6 @@ export const getUsers = async (
 };
 
 export const emailLinked = async (email: string) => {
-
   const result = emailToken();
 
   const sqlQuery = `
@@ -483,7 +417,7 @@ export const emailLinked = async (email: string) => {
     VALUES (UUID(), ?, false, ?, ?);
   `;
 
-  const user = await query(sqlQuery, [email, result.token, result.expires]);
+  await query(sqlQuery, [email, result.token, result.expires]);
 
   let baseUrl;
   if (process.env.NODE_ENV === 'development') {
@@ -503,56 +437,33 @@ export const emailLinked = async (email: string) => {
   );
 };
 
-export const verifyToken = async (token: string) => {
-  const user = await prisma.user.findFirst({
-    where: {
-      verificationToken: token,
-      verificationTokenExpires: {
-        gte: new Date(),
-      },
-    },
-  });
+export const verifyToken = async (userId: string) => {
+  const updateQuery = `
+      UPDATE user 
+      SET isVerified = true, 
+          verificationToken = NULL,
+          verificationTokenExpires = NULL
+      WHERE id = ?;
+    `;
 
-  if (!user) {
-    throw { message: '토큰이 유효하지 않습니다.' };
-  }
-
-  await prisma.user.update({
-    where: {
-      id: user.id,
-    },
-    data: {
-      isVerified: true,
-      verificationToken: null,
-      verificationTokenExpires: null,
-    },
-  });
+  await query(updateQuery, [userId]);
 };
 
 export const registerUser = async (
-  email: string,
+  userId: string,
   username: string,
   password: string,
 ) => {
-
-  const userQuery = 'SELECT id, isVerified FROM user WHERE email = ?';
-
-  const [user] = await query(userQuery, [email]);
-
-  if (!user || !user.isVerified) {
-    throw { message: '이메일 인증이 필요합니다.' };
-  }
-
   // 비밀번호를 해시하여 저장 (안전한 비밀번호 저장)
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const updateUserQuery = `UPDATE user SET username = ?, password = ? WHERE id = ?`;
 
-  await query(updateUserQuery, [username, hashedPassword, user.id]);
+  await query(updateUserQuery, [username, hashedPassword, userId]);
 
   const updatedUserQuery = 'SELECT * FROM user WHERE id = ?';
 
-  const [updatedUser] = await query(updatedUserQuery, [user.id]);
+  const [updatedUser] = await query(updatedUserQuery, [userId]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, updatedUser[0], {
     excludeExtraneousValues: true,

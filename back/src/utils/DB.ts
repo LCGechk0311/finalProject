@@ -1,7 +1,17 @@
 import mysql from 'mysql2';
 import util from 'util';
 import * as Redis from 'redis';
+import session from "express-session";
+import RedisStore from 'connect-redis';
 import dotenv from "dotenv";
+
+declare module 'express-session' {
+   interface SessionData {
+     is_logined?: boolean;
+     dispayName?: string;
+     userId?: string;
+   }
+ }
 
 dotenv.config();
 
@@ -28,6 +38,22 @@ redisClient.on('connect', () => {
 });
 redisClient.on('error', (err) => {
    console.error('Redis Client Error', err);
+});
+
+const redisStoreInstance = new RedisStore({ client: redisClient });
+export const redisSetAsync = util.promisify(redisClient.set).bind(redisClient);
+export const redisDelAsync = util.promisify(redisClient.del).bind(redisClient);
+
+export const sessionMiddleware = session({
+   store: redisStoreInstance,
+   secret: process.env.SESSION_SECRET_KEY,
+   resave: false,
+   saveUninitialized: false,
+   cookie: {
+       secure: false,
+       httpOnly: true,
+       maxAge: 24 * 60 * 60 * 1000
+   }
 });
 
 export default redisClient;

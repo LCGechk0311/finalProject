@@ -5,18 +5,14 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from '../../utils/tokenUtils';
-import { prisma } from '../../../prisma/prismaClient';
+import { query } from '../../utils/DB';
 
 const googleStrategy = new GoogleStrategy(
   {
-    // Google 개발자 콘솔에서 생성한 OAuth 2.0 클라이언트 ID와 시크릿 키를 사용
     clientID: process.env.GOOGLE_ID,
     clientSecret: process.env.GOOGLE_PASSWORD,
     // 콜백 URL 설정 (인증 완료 후 리디렉션되는 URL)
-    callbackURL : '/api/users/google/callback',
-
-    // 테스트용 콜백 URL 설정
-    // callbackURL: '/test/google/fake',
+    callbackURL: '/api/users/google/callback',
   },
   async (
     accessToken: string,
@@ -30,16 +26,16 @@ const googleStrategy = new GoogleStrategy(
       // Google 프로필에서 이메일 정보 추출
       const email = profile.emails[0].value;
       // 이메일로 사용자를 데이터베이스에서 찾음
-      const exUser = await prisma.user.findUnique({
-        where: {
-          email: email,
-        },
-      });
+      const selectQuery = `
+    SELECT * FROM user WHERE email = ?;
+  `;
+      const selectResult = await query(selectQuery, [email]);
+      const exUser = selectResult[0];
 
       if (exUser) {
         // 사용자가 이미 존재하면 AccessToken과 RefreshToken을 생성
         const jwtAccessToken = generateAccessToken(exUser.id);
-        const jwtRefreshToken = generateRefreshToken(exUser.id);
+        const jwtRefreshToken = await generateRefreshToken(exUser.id);
 
         // AccessToken과 RefreshToken을 클라이언트에게 전달
         done(null, {
@@ -56,6 +52,6 @@ const googleStrategy = new GoogleStrategy(
   },
 );
 
-passport.use(googleStrategy);
+passport.use('google', googleStrategy);
 
 export default googleStrategy;

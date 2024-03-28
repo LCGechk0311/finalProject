@@ -52,7 +52,6 @@ export const verifyRefreshToken = async (
   refreshToken: string,
 ) => {
   try {
-    // refreshToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjAzZjdiN2YwLWMzMTEtMTFlZS1hNjhjLWIwMjVhYTM2OGEzMyIsImlhdCI6MTcwOTExMjYzMCwiZXhwIjoxNzExNzA0NjMwfQ.YXbsk8UJ4hpplHICCJety7YEKrVnTfKok4Mfqa5g_z0';
     return redisClient
       .get(refreshToken)
       .then((userId) => {

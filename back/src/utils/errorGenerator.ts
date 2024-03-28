@@ -12,5 +12,6 @@ export const generateError = (
 ): IError => {
   const error: IError = new Error(errorMessage);
   error.statusCode = statusCode;
+  console.log(error);
   return error;
 };

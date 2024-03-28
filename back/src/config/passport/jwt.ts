@@ -1,6 +1,6 @@
 import passportJWT from 'passport-jwt';
 import jwtSecret from '../jwtSecret';
-import { prisma } from '../../../prisma/prismaClient';
+import { query } from '../../utils/DB';
 
 // Passport-JWT에서 필요한 모듈 및 객체를 가져옵니다.
 const JWTStrategy = passportJWT.Strategy;
@@ -15,12 +15,11 @@ const jwtStrategy = new JWTStrategy(
   },
   async (jwtPayload, done) => {
     try {
-      // JWT에 포함된 사용자 ID를 사용하여 데이터베이스에서 사용자를 찾습니다.
-      const user = await prisma.user.findUnique({
-        where: {
-          id: jwtPayload.id,
-        },
-      });
+      const selectQuery = `
+    SELECT * FROM user WHERE id = ?;
+  `;
+      const selectResult = await query(selectQuery, [jwtPayload.id]);
+      const user = selectResult[0];
 
       if (!user) {
         return done(null, false, { message: '사용자를 찾을 수 없습니다.' });

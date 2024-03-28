@@ -41,13 +41,21 @@ export class userResponseDTO {
   updatedAt: Date;
 
   @Expose()
-  isFriend: boolean;
-
-  @Expose()
   latestEmoji : string;
 }
 
 export class userValidateDTO {
+  @IsString()
+  email: string;
+
+  @IsString()
+  username: string;
+
+  @IsString()
+  password: string;
+}
+
+export class userUpdateValidateDTO {
   @IsOptional()
   @IsString()
   email: string;
@@ -58,16 +66,9 @@ export class userValidateDTO {
 
   @IsOptional()
   @IsString()
-  password: string;
-
-  @IsOptional()
-  @IsString()
   description: string;
 
   @IsOptional()
   @IsString({ each: true })
   profileImage: fileUpload[];
-
-  @IsOptional()
-  isFriend: boolean;
 }

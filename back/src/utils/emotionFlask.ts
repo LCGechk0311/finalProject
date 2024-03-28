@@ -1,5 +1,5 @@
-import { prisma } from '../../prisma/prismaClient';
 import axios from 'axios';
+import { query } from './DB';
 
 export async function generateEmotionString(content: string) {
   const responseData = await axios.post(
@@ -12,14 +12,18 @@ export async function generateEmotionString(content: string) {
 
   const emojis = await Promise.all(
     labels.map(async (label: string) => {
-      const emotions = await prisma.emoji.findMany({
-        where: {
-          type: label,
-        },
-        select: {
-          emotion: true,
-        },
-      });
+      // const emotions = await prisma.emoji.findMany({
+      //   where: {
+      //     type: label,
+      //   },
+      //   select: {
+      //     emotion: true,
+      //   },
+      // });
+      const emotionsQuery = `
+        SELECT emotion FROM emoji WHERE type = ?;
+      `;
+      const emotions = await query(emotionsQuery, [label]);
 
       if (emotions.length > 0) {
         const randomEmotion =

@@ -4,13 +4,12 @@ import {
   myInfo,
   getAllUsers,
   getMyFriends,
-  getUserInfo,
   logout,
+  getUserInfo,
   updateUserService,
   deleteUserService,
   forgotUserPassword,
   resetUserPassword,
-  getUserFromDatabase,
   getUsers,
   emailLinked,
   verifyToken,
@@ -18,30 +17,30 @@ import {
 } from '../services/userService';
 import { generateAccessToken, verifyRefreshToken } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
-import { userValidateDTO } from '../dtos/userDTO';
+import { userUpdateValidateDTO, userValidateDTO } from '../dtos/userDTO';
 import { plainToClass } from 'class-transformer';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { generateRefreshToken } from '../utils/tokenUtils';
-
 import { generateError } from '../utils/errorGenerator';
 import { validate } from 'class-validator';
 import { setCookie } from '../utils/responseData';
+import { query } from '../utils/DB';
 
 export const userRegister = async (req: Request, res: Response) => {
   // #swagger.tags = ['Users']
   // #swagger.summary = '회원가입'
-  const { username, email, password } = req.body;
+  const { username, email, password, permissions } = req.body;
 
-  // const userInput = plainToClass(userValidateDTO, req.body);
+  const userInput = plainToClass(userValidateDTO, req.body);
 
-  // const errors = await validate(userInput);
+  const errors = await validate(userInput);
 
-  // if (errors.length > 0) {
-  //   throw generateError(500, '양식에 맞춰서 입력해주세요');
-  // }
+  if (errors.length > 0) {
+    // throw generateError(500, '양식에 맞춰서 입력해주세요');
+    return res.status(500).json({ message: '양식에 맞춰서 입력해주세요' });
+  }
 
   // createUser 함수를 사용하여 새 사용자 생성
-  
   const user = await createUser(req.body);
 
   return res.status(200).json(user);
@@ -55,12 +54,20 @@ export const getMyInfo = async (req: IRequest, res: Response) => {
      #swagger.summary = '현재 유저 정보'
         */
 
-  const userId = req.user.id;
+  if (req.session) {
+    const userId = req.session.userId;
+    console.log(2);
+    const currentUserInfo = await myInfo(userId);
+    console.log(currentUserInfo);
 
-  // myInfo 함수를 사용하여 현재 사용자의 정보 가져오기
-  const currentUserInfo = await myInfo(userId);
+    res.status(currentUserInfo.status).json(currentUserInfo);
+  } else {
+    const userId = req.user.id;
+    console.log(1);
+    const currentUserInfo = await myInfo(userId);
 
-  res.status(currentUserInfo.status).json(currentUserInfo);
+    res.status(currentUserInfo.status).json(currentUserInfo);
+  }
 };
 
 export const getAllUser = async (req: IRequest, res: Response) => {
@@ -96,6 +103,28 @@ export const getMyFriend = async (req: IRequest, res: Response) => {
   return res.status(allMyFriends.status).json(allMyFriends);
 };
 
+export const userLogout = async (req: IRequest, res: Response) => {
+  /* #swagger.tags = ['Users']
+         #swagger.security = [{
+               "bearerAuth": []
+        }]
+     #swagger.summary = '로그아웃'
+        */
+  if (req.session) {
+    const userId = req.session.id;
+    console.log(2);
+    await logout(userId);
+
+    res.status(204).json({message : "로그아웃 완료"});
+  } else {
+    const userId = req.user.id;
+    console.log(1);
+    await logout(userId);
+
+    res.status(204).json({message : "로그아웃 완료"});
+  }
+};
+
 export const getUserId = async (req: IRequest, res: Response) => {
   /* #swagger.tags = ['Users']
          #swagger.security = [{
@@ -112,20 +141,6 @@ export const getUserId = async (req: IRequest, res: Response) => {
   res.status(userInfo.status).json(userInfo);
 };
 
-export const userLogout = async (req: IRequest, res: Response) => {
-  /* #swagger.tags = ['Users']
-         #swagger.security = [{
-               "bearerAuth": []
-        }]
-     #swagger.summary = '로그아웃'
-        */
-
-  const userId = req.user.id;
-  await logout(userId);
-
-  res.status(200).json({ message: '로그아웃되었습니다.' });
-};
-
 export const updateUser = async (req: IRequest, res: Response) => {
   // swagger 데이터전용
   /* #swagger.tags = ['Users']
@@ -138,12 +153,13 @@ export const updateUser = async (req: IRequest, res: Response) => {
   const { email, username, description } = req.body;
 
   const userId = req.params.userId;
-  const userInput = plainToClass(userValidateDTO, req.body);
+  const userInput = plainToClass(userUpdateValidateDTO, req.body);
 
   const errors = await validate(userInput);
 
   if (errors.length > 0) {
-    throw generateError(500, '양식에 맞춰서 입력해주세요');
+    // throw generateError(500, '양식에 맞춰서 입력해주세요');
+    return res.status(500).json({ message: '양식에 맞춰서 입력해주세요' });
   }
   // updateUserService 함수를 사용하여 사용자 정보 업데이트
   const updatedUser = await updateUserService(userId, req.body);
@@ -178,7 +194,14 @@ export const forgotPassword = async (req: IRequest, res: Response) => {
 
   const { email } = req.body;
 
-  // forgotUserPassword 함수를 사용하여 임시 비밀번호 생성 및 이메일로 전송
+  const userQuery = `SELECT * FROM user WHERE email = ?`;
+  const user = await query(userQuery, [email]);
+
+  if (user.length === 0) {
+    const response = emptyApiResponseDTO();
+    return res.status(response.status).json({ message: response.message });
+  }
+
   await forgotUserPassword(email);
 
   return res
@@ -267,6 +290,10 @@ export const searchKeyword = async (req: IRequest, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
 
+  if (!field || (field !== 'username' && field !== 'email')) {
+    return res.status(500).json({ message: '올바른 필드 값을 지정하세요.' });
+  }
+
   const searchKeyword = await getUsers(searchTerm, field, page, limit);
 
   return res.status(searchKeyword.status).json(searchKeyword);
@@ -291,6 +318,18 @@ export const verifyEmail = async (req: IRequest, res: Response) => {
 
   const { token } = req.params;
 
+  const sqlQuery = `
+    SELECT * FROM user 
+    WHERE verificationToken = ? 
+    AND verificationTokenExpires >= NOW()
+    LIMIT 1;
+  `;
+
+  const user = await query(sqlQuery, [token]);
+  if (!user) {
+    return res.status(404).json({ message: '토큰이 유효하지 않습니다.' });
+  }
+
   await verifyToken(token);
 
   res.redirect('/api/users/verified');
@@ -310,14 +349,15 @@ export const testEmail = async (req: IRequest, res: Response) => {
 
   const { email, username, password } = req.body;
 
+  const userQuery = 'SELECT id, isVerified FROM user WHERE email = ?';
+
+  const user = await query(userQuery, [email]);
+
+  if (!user) {
+    return res.status(404).json({ message: '이메일 인증이 필요합니다.' });
+  }
+
   const userRegister = await registerUser(email, username, password);
 
   return res.status(userRegister.status).json(userRegister);
-};
-
-export const expire = async (req: IRequest, res: Response) => {
-  // #swagger.tags = ['Users']
-  // #swagger.summary = '토큰 만료 여부 확인'
-
-  res.status(200).json({ message: 'Token is valid' });
 };

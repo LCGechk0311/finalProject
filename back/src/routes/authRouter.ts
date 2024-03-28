@@ -1,16 +1,15 @@
 import { Router } from 'express';
-import{
-    userLogin,
-} from '../controllers/authController';
-import { localAuthentication } from '../middlewares/authenticateLocal';
+import { userLogin, sessionLogin } from '../controllers/authController';
+import {
+  localAuthentication,
+  sessionLocalAuthentication,
+} from '../middlewares/authenticateLocal';
 import { wrapAsyncController } from '../utils/wrapper';
 
 const authRouter = Router();
 
-authRouter.post(
-    '/login',
-    localAuthentication,
-    wrapAsyncController(userLogin),
-  );
+authRouter.post('/login', localAuthentication, wrapAsyncController(userLogin));
 
-  export default authRouter;
+authRouter.post('/sessionLogin', sessionLocalAuthentication, wrapAsyncController(sessionLogin));
+
+export default authRouter;

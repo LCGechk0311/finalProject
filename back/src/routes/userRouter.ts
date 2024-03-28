@@ -6,6 +6,7 @@ import {
   getMyInfo,
   getAllUser,
   getMyFriend,
+  userLogout,
   getUserId,
   updateUser,
   deleteUser,
@@ -13,16 +14,15 @@ import {
   resetPassword,
   refresh,
   loginCallback,
-  userLogout,
   emailLink,
   testEmail,
   searchKeyword,
-  expire,
 } from '../controllers/userController';
 import { jwtAuthentication } from '../middlewares/authenticateJwt';
 import { fileUpload } from '../middlewares/uploadMiddleware';
 import { wrapAsyncController } from '../utils/wrapper';
 import passport from 'passport';
+import { requireAuthentication, requireSession } from '../middlewares/sessionAuthorization';
 const userRouter = Router();
 // 회원가입
 userRouter.post('/register', wrapAsyncController(userRegister));
@@ -52,6 +52,12 @@ userRouter.get(
   wrapAsyncController(getMyInfo),
 );
 
+userRouter.get(
+  '/sessionCurrent',
+  requireSession,
+  wrapAsyncController(getMyInfo),
+);
+
 // 모든 유저 정보
 userRouter.get(
   '/allUser',
@@ -67,17 +73,10 @@ userRouter.get(
 );
 
 // 로그아웃
-userRouter.get(
+userRouter.post(
   '/logout',
-  jwtAuthentication,
+  requireAuthentication,
   wrapAsyncController(userLogout),
-);
-
-// 토큰 만료 여부 체크
-userRouter.get(
-  '/tokenExpire',
-  jwtAuthentication,
-  wrapAsyncController(expire),
 );
 
 // 특정 유저 정보, 유저 수정, 유저 탈퇴
