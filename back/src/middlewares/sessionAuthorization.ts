@@ -1,33 +1,30 @@
 import { IRequest } from 'types/request';
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import redisClient from '../utils/DB';
 
-export const requireSession = (
+export const requireAuthentication = async (
   req: IRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  if (req.session) {
-    console.log(req.session);
-    next();
-  } else {
-    console.log(req.session);
-    console.log(req.cookies);
-    res.status(401).json({ message: 'Unauthorized' });
-  }
-};
+  try {
+    const sessionDataString = await redisClient.get(`session:${req.sessionID}`);
 
-export const requireAuthentication = (
-  req: IRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  const sessionId = req.cookies.sessionId;
-  console.log(sessionId);
+    if (sessionDataString) {
+      const sessionData = JSON.parse(sessionDataString);
 
-  if (sessionId && sessionStorage.has(sessionId)) {
-    next();
-  } else {
-    res.status(401).json({ message: 'Unauthorized' });
+      if (sessionData.userId === req.session.userId) {
+        next();
+      } else {
+        res.status(401).json({ message: 'Unauthorized' });
+      }
+    } else {
+      res.status(401).json({ message: 'Unauthorized' });
+    }
+  } catch (error) {
+    // Handle Redis errors
+    console.error('Redis error:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 };
 

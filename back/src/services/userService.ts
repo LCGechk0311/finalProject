@@ -8,7 +8,7 @@ import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { IUser } from 'types/user';
-import { query, redisDelAsync } from '../utils/DB';
+import redisClient, { query } from '../utils/DB';
 
 export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
@@ -217,18 +217,12 @@ export const getMyFriends = async (
   return response;
 };
 
-export const logout = async (userId: string) => {
-  const sessionKey = `session:${userId}`;
+export const logout = async (sessionID: string) => {
+  const sessionKey = `session:${sessionID}`;
   
   try {
-    // Redis에서 세션 데이터 삭제
-    const deletedCount = await redisDelAsync(sessionKey);
-    
-    if (deletedCount === 1) {
-      console.log('세션 삭제 완료');
-    } else {
-      console.log('세션 찾을 수 없음');
-    }
+    await redisClient.del(sessionKey);
+
   } catch (error) {
     console.error('세션 삭제 실패:', error);
   }

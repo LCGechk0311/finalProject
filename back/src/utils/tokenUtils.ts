@@ -22,11 +22,11 @@ export const generateRefreshToken = async (userId: string) => {
 
   const expireIn = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30;
 
-  const prevToken = redisClient.get(userId);
+  const prevToken = redisClient.get(refreshToken);
 
   // 이전 토큰이 존재하면 만료시킴
   if (prevToken) {
-    await redisClient.del(userId); // 이전 토큰 삭제
+    await redisClient.del(refreshToken); // 이전 토큰 삭제
   }
 
   redisClient.set(refreshToken, userId);

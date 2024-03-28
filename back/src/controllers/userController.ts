@@ -54,16 +54,13 @@ export const getMyInfo = async (req: IRequest, res: Response) => {
      #swagger.summary = '현재 유저 정보'
         */
 
-  if (req.session) {
+  if (req.sessionID) {
     const userId = req.session.userId;
-    console.log(2);
     const currentUserInfo = await myInfo(userId);
-    console.log(currentUserInfo);
 
     res.status(currentUserInfo.status).json(currentUserInfo);
   } else {
     const userId = req.user.id;
-    console.log(1);
     const currentUserInfo = await myInfo(userId);
 
     res.status(currentUserInfo.status).json(currentUserInfo);
@@ -110,19 +107,18 @@ export const userLogout = async (req: IRequest, res: Response) => {
         }]
      #swagger.summary = '로그아웃'
         */
-  if (req.session) {
-    const userId = req.session.id;
-    console.log(2);
-    await logout(userId);
+  const sessionId = req.sessionID;
 
-    res.status(204).json({message : "로그아웃 완료"});
-  } else {
-    const userId = req.user.id;
-    console.log(1);
-    await logout(userId);
+  await logout(sessionId);
 
-    res.status(204).json({message : "로그아웃 완료"});
-  }
+  req.session.destroy((err) => {
+    if (err) {
+      console.error(err);
+      return res.status(500).json({ message: 'Internal Server Error' });
+    }
+    res.clearCookie('sessionID');
+    return res.status(204).json({ message: '로그아웃 완료' });
+  });
 };
 
 export const getUserId = async (req: IRequest, res: Response) => {

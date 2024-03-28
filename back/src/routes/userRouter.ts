@@ -22,7 +22,7 @@ import { jwtAuthentication } from '../middlewares/authenticateJwt';
 import { fileUpload } from '../middlewares/uploadMiddleware';
 import { wrapAsyncController } from '../utils/wrapper';
 import passport from 'passport';
-import { requireAuthentication, requireSession } from '../middlewares/sessionAuthorization';
+import { requireAuthentication } from '../middlewares/sessionAuthorization';
 const userRouter = Router();
 // 회원가입
 userRouter.post('/register', wrapAsyncController(userRegister));
@@ -54,7 +54,7 @@ userRouter.get(
 
 userRouter.get(
   '/sessionCurrent',
-  requireSession,
+  requireAuthentication,
   wrapAsyncController(getMyInfo),
 );
 

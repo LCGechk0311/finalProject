@@ -41,8 +41,6 @@ redisClient.on('error', (err) => {
 });
 
 const redisStoreInstance = new RedisStore({ client: redisClient });
-export const redisSetAsync = util.promisify(redisClient.set).bind(redisClient);
-export const redisDelAsync = util.promisify(redisClient.del).bind(redisClient);
 
 export const sessionMiddleware = session({
    store: redisStoreInstance,

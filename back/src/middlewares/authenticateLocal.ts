@@ -4,7 +4,7 @@ import { IUser } from 'types/user';
 import { generateAccessToken, generateRefreshToken } from '../utils/tokenUtils';
 import { IRequest } from 'types/request';
 import { setCookie } from '../utils/responseData';
-import { redisSetAsync } from '../utils/DB';
+import redisClient from '../utils/DB';
 
 export const localAuthentication = (
   req: IRequest,
@@ -64,7 +64,6 @@ export const sessionLocalAuthentication = (
         }
         if (info) {
           console.log(info);
-          console.log('Session ID:', req.sessionID);
           next(info);
         }
         const sessionData = {
@@ -72,10 +71,10 @@ export const sessionLocalAuthentication = (
           displayName: user.username,
         };
         try {
-          await redisSetAsync(
-            `session:${req.sessionID}`,
-            JSON.stringify(sessionData),
-          );
+          console.log(req.session);
+          const sessionKey = `session:${req.sessionID}`;
+          await redisClient.set(sessionKey, JSON.stringify(sessionData));
+
           req.user = user;
           req.session.is_logined = true;
           req.session.userId = user.id;
