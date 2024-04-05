@@ -54,7 +54,7 @@ export const chat = (io: SocketIoServer) => {
       };
     }
 
-    socket.onAny((eventName: string, ...args: any[]) => {});
+    socket.onAny((eventName: string, ...args: any[]) => {}); // 이벤트 발생 여부 확인
 
     socket.on('initialize', async (userId: string) => {
       if (user) {

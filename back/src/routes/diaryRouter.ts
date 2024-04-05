@@ -51,9 +51,9 @@ const diaryRouter = Router();
 diaryRouter.post(
   '/',
   jwtAuthentication,
-  postDiaryUpload,
+  // postDiaryUpload,
   wrapAsyncController(createDiary),
-  wrapAsyncController(createdGPTCommentMiddleware),
+  // wrapAsyncController(createdGPTCommentMiddleware),
 );
 
 // // 일기 초대 메일?
@@ -113,9 +113,9 @@ diaryRouter
   .get(jwtAuthentication, wrapAsyncController(getOneDiary))
   .put(
     jwtAuthentication,
-    diaryUpload,
+    // diaryUpload,
     wrapAsyncController(updateDiary),
-    wrapAsyncController(updatedGPTComment),
+    // wrapAsyncController(updatedGPTComment),
   )
   .delete(jwtAuthentication, wrapAsyncController(deleteDiary));
 

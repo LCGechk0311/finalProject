@@ -9,6 +9,7 @@ import { calculatePageInfo } from '../utils/pageInfo';
 import { prisma } from '../../prisma/prismaClient';
 import { callChatGPT } from '../utils/chatGPT';
 import dotenv from 'dotenv';
+import { query } from '../utils/DB';
 dotenv.config();
 
 //댓글 작성
@@ -223,19 +224,35 @@ export async function createdGPTComment(
 ) {
   const testChatGPT = await callChatGPT(content);
 
-  const checkDiary = await prisma.diary.findUnique({
-    where: { id: diaryId },
-  });
+  // const checkDiary = await prisma.diary.findUnique({
+  //   where: { id: diaryId },
+  // });
 
-  if (checkDiary != null) {
-    await prisma.comment.create({
-      data: {
-        diaryId,
-        authorId: process.env.AI_ID,
-        content: testChatGPT,
-        writeAi: authorId,
-      },
-    });
+  const checkDiaryQuery = `
+      SELECT * FROM diary
+      WHERE id = ?;
+    `;
+    const checkDiaryValues = [diaryId];
+    const checkDiaryResult = await query(checkDiaryQuery, checkDiaryValues);
+
+    if (checkDiaryResult.length > 0) {
+      const createCommentQuery = `
+        INSERT INTO comment (diaryId, authorId, content, writeAi)
+        VALUES (?, ?, ?, ?);
+      `;
+      const createCommentValues = [diaryId, process.env.AI_ID, testChatGPT, authorId];
+      await query(createCommentQuery, createCommentValues);
+      
+
+  // if (checkDiary != null) {
+  //   await prisma.comment.create({
+  //     data: {
+  //       diaryId,
+  //       authorId: process.env.AI_ID,
+  //       content: testChatGPT,
+  //       writeAi: authorId,
+  //     },
+  //   });
   }
 }
 

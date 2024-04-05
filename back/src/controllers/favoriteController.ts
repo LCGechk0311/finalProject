@@ -26,7 +26,7 @@ export const favoriteSwitch = async (
   const like = await searchFavorite(diary_id, user_id);
 
   //로그인 유저가 해당 게시물에 대해 like했던 데이터가 있다면 해당 like 데이터 삭제
-  if (like) {
+  if (like.length > 0) {
     await deleteFavorite(diary_id, user_id);
     return res
       .status(200)

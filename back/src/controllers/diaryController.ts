@@ -57,8 +57,7 @@ export const createDiary = async (
 
   // 해당 날짜에 다이어리 존재하는지 체크
   const checkExistedDiary = await getDiaryByDateService(userId, createdDate);
-
-  if (checkExistedDiary) {
+  if (checkExistedDiary > 0) {
     throw generateError(409, '해당 날짜에 이미 일기가 존재합니다.');
   }
   const diaryInput = plainToClass(DiaryValidateDTO, inputData);
@@ -374,7 +373,8 @@ export const searchDiary = async (
     limit,
     friendIdList,
   );
-
+  console.log(searchDiary.status);
+  console.log(searchDiary);
   return res.status(searchDiary.status).json(searchDiary);
 };
 

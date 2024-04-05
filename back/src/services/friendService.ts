@@ -232,9 +232,16 @@ export const getMyWholeFriends = async (userId: string) => {
   `;
 
   const result = await query(sqlQuery, [userId, userId]);
-  console.log(result);
-  console.log(2);
   return friendList;
+  // const sqlQuery = `
+  //     SELECT *
+  //     FROM Friend
+  //     WHERE (sentUserId = ? OR receivedUserId = ?) AND status = true
+  //   `;
+
+  //   // Execute SQL query to get whole friends
+  //   const result = await query(sqlQuery, [userId, userId]);
+  //   return result;
 };
 
 /** @description 친구 목록 */

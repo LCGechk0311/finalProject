@@ -60,24 +60,10 @@ export const getAllUsers = async (
   page: number,
   limit: number,
 ) => {
-  const sqlQuery = `
-  SELECT
-    CASE
-      WHEN sentUserId = ? THEN receivedUserId
-      ELSE sentUserId
-    END AS friendId
-  FROM Friend
-  WHERE (sentUserId = ? OR receivedUserId = ?) AND status = true
-`;
-
-  const rows = await query(sqlQuery, [userId, userId, userId]);
-
-  const friendIds = rows.map((row: { friendId: string }) => row.friendId);
 
   const userQuery = `
-  SELECT user.*, profileImage.*
-  FROM User AS user
-  LEFT JOIN fileUpload AS profileImage ON user.id = profileImage.userId
+  SELECT *
+  FROM user
   LIMIT ${limit}
   OFFSET ${(page - 1) * limit};
 `;
@@ -85,32 +71,30 @@ export const getAllUsers = async (
   const userList = await query(userQuery);
 
   for (const user of userList) {
+    console.log(user);
     const diaryQuery = `
     SELECT *
     FROM Diary
-    WHERE authorId = ${user.id}
-    ORDER BY createdDate ASC
-    LIMIT 1;
+    WHERE authorId = '${user.id}'
+    ORDER BY createdDate ASC;
   `;
 
-    const [firstDiary] = await query(diaryQuery);
-
-    if (firstDiary) {
+    const firstDiary = await query(diaryQuery);
+    if (firstDiary[0]) {
       user.latestEmoji = firstDiary.emoji;
     }
   }
 
-  friendIds.push(userId);
-  const friendsWithIsFriend = userList.map((user: IUser) => {
-    user.isFriend = friendIds.includes(user.id);
-    return user;
-  });
+  const countQuery = `select count(*) as totalItem from user`;
 
-  const { totalItem, totalPage } = await calculatePageInfo('user', limit, {});
+  const totalItemResult = await query(countQuery);
+  const totalItem = totalItemResult[0].totalItem;
+  const totalPage = Math.ceil(totalItem / limit);
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
 
-  const userResponseDataList = friendsWithIsFriend.map(
+  console.log(userList);
+  const userResponseDataList = userList.map(
     (user: { userId: string }) =>
       plainToClass(userResponseDTO, user, { excludeExtraneousValues: true }),
   );

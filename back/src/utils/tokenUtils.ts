@@ -6,7 +6,7 @@ import redisClient from './DB';
 export const generateAccessToken = (userId : string): { token: string; expiresAt: number } => {
   // 사용자 ID를 기반으로 새로운 Access Token 생성
   const accessToken = jwt.sign({ id: userId }, jwtSecret, {
-    expiresIn: '10m',
+    expiresIn: '1d',
   });
   const expirationTime = Math.floor(Date.now() / 1000) + 60 * 60 * 24;
 

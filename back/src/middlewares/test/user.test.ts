@@ -319,23 +319,27 @@ describe('이메일 인증', () => {
   });
 
   it('이메일 토큰 인증 성공', async () => {
-    const token = 'emailToken';
     const req: any = {
       params: 'emailToken',
     };
-
+    const res: any = {
+      redirect: jest.fn(),
+    };
     (query as jest.Mock).mockResolvedValueOnce(true);
     (verifyToken as jest.Mock).mockResolvedValueOnce(true);
 
     await verifyEmail(req, res);
 
-    expect(token).toHaveBeenCalledWith(1);
+    expect(res.redirect).toHaveBeenCalled();
   });
 
   it('이메일 토큰 인증 실패', async () => {
-    const token = 'emailToken';
+    const req: any = {
+      params: 'emailToken',
+    };
+    (query as jest.Mock).mockResolvedValueOnce(false);
 
-    (query as jest.Mock).mockResolvedValueOnce([]);
+    await verifyEmail(req, res);
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({
@@ -369,7 +373,7 @@ describe('이메일 인증', () => {
       },
     };
 
-    (query as jest.Mock).mockResolvedValueOnce([]);
+    (query as jest.Mock).mockResolvedValueOnce(false);
 
     await testEmail(req, res);
 
@@ -379,16 +383,3 @@ describe('이메일 인증', () => {
     });
   });
 });
-
-// beforeAll(() => {
-//   // Redis 클라이언트가 이미 연결되어 있는지 확인
-//   if (!redisClient.connect) {
-//     // Redis 클라이언트가 연결되어 있지 않으면 연결 시도
-//     redisClient.connect();
-//   }
-// });
-
-// afterAll(() => {
-//   // Redis 연결 닫기
-//   redisClient.quit();
-// });

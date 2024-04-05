@@ -1,12 +1,20 @@
 import { prisma } from '../../prisma/prismaClient';
+import { query } from '../utils/DB';
 
 /** @description 현재 사용자 */
 export const currentUser = async (currentUserId: string) => {
-  const user = await prisma.user.findUnique({
-    where: {
-      id: currentUserId,
-    },
-  });
+  // const user = await prisma.user.findUnique({
+  //   where: {
+  //     id: currentUserId,
+  //   },
+  // });
+  const selectQuery = `
+    SELECT * FROM user WHERE id = ?;
+  `;
+
+  const selectResult = await query(selectQuery, [currentUserId]);
+
+  const user = selectResult[0];
   return user;
 };
 
@@ -20,11 +28,25 @@ export const createRoomId = (currentUserId: string, chatPartnerId: string) => {
 
 /** @description 채팅룸 생성 */
 export const createChatRoom = async (roomId: string) => {
-  const room = await prisma.chatRoom.create({
-    data: {
-      id: roomId,
-    },
-  });
+  // const room = await prisma.chatRoom.create({
+  //   data: {
+  //     id: roomId,
+  //   },
+  // });
+  const sqlQuery = `
+    INSERT INTO chatRoom (id)
+    VALUES (?);
+  `;
+
+  await query(sqlQuery, [roomId]);
+
+  const selectQuery = `
+    SELECT * FROM chatRoom WHERE id = ?;
+  `;
+
+  const selectResult = await query(selectQuery, [roomId]);
+
+  const room = selectResult[0];
   return room;
 };
 

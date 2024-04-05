@@ -17,10 +17,13 @@ export const calculatePageInfo = async (
   // const totalItem = await (prisma[tableName] as any).count({
   //   where,
   // });
+  console.log(1);
+  console.log(tableName);
   const countQuery = `
-    SELECT COUNT(*) AS totalItem FROM ${tableName} WHERE ${where};
+    SELECT COUNT(*) FROM ? WHERE ?;
   `;
-  const countResult = await query(countQuery);
+  const countResult = await query(countQuery, [tableName, where]);
+  console.log(countResult);
 
   const totalItem = countResult[0].totalItem;
   const totalPage = Math.ceil(totalItem / limit);
