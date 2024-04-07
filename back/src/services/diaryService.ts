@@ -1,14 +1,11 @@
 import { checkFriend, getMyWholeFriends, weAreFriends } from './friendService';
-import { calculatePageInfo } from '../utils/pageInfo';
 import { DiaryResponseDTO, PaginationResponseDTO } from '../dtos/diaryDTO';
 import { plainToClass } from 'class-transformer';
 import { successApiResponseDTO } from '../utils/successResult';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
-import { sendEmail } from '../utils/email';
 import { generateEmotionString } from '../utils/emotionFlask';
 import { prisma } from '../../prisma/prismaClient';
 import { generateError } from '../utils/errorGenerator';
-import { response } from 'express';
 import { findMode } from '../utils/modeEmotion';
 import { query } from '../utils/DB';
 
@@ -531,55 +528,86 @@ export const searchDiaryService = async (
   });
   const fullTextQuery = modifiedSearch.join(' ');
 
-  const searchDiaryQuery = {
-    skip: (page - 1) * limit,
-    take: limit,
-    include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          profileImage: true,
-        },
-      },
-    },
-    where: {
-      OR: [
-        {
-          // 전체공개 다이어리 ( 내 글 제외 )
-          is_public: 'all',
-          NOT: {
-            authorId: userId,
-          },
-        },
-        {
-          // 친구 글 (비공개 제외)
-          NOT: {
-            is_public: 'private',
-          },
-          authorId: { in: friendIdList },
-        },
-      ],
-      content: {
-        search: fullTextQuery,
-      },
-      title: {
-        search: fullTextQuery,
-      },
-    },
-  };
+  // const searchDiaryQuery = {
+  //   skip: (page - 1) * limit,
+  //   take: limit,
+  //   include: {
+  //     author: {
+  //       select: {
+  //         id: true,
+  //         username: true,
+  //         email: true,
+  //         profileImage: true,
+  //       },
+  //     },
+  //   },
+  //   where: {
+  //     OR: [
+  //       {
+  //         // 전체공개 다이어리 ( 내 글 제외 )
+  //         is_public: 'all',
+  //         NOT: {
+  //           authorId: userId,
+  //         },
+  //       },
+  //       {
+  //         // 친구 글 (비공개 제외)
+  //         NOT: {
+  //           is_public: 'private',
+  //         },
+  //         authorId: { in: friendIdList },
+  //       },
+  //     ],
+  //     content: {
+  //       contains: fullTextQuery,
+  //     },
+  //     title: {
+  //       contains: fullTextQuery,
+  //     },
+  //   },
+  // };
 
-  const searchedDiary = await prisma.diary.findMany({
-    ...searchDiaryQuery,
-    orderBy: {
-      _relevance: {
-        fields: ['title', 'content'],
-        search: fullTextQuery,
-        sort: 'desc',
-      },
-    },
-  });
+  // const searchedDiary = await prisma.diary.findMany({
+  //   ...searchDiaryQuery,
+  //   orderBy: {
+  //     _relevance: {
+  //       fields: ['title', 'content'],
+  //       search: fullTextQuery,
+  //       sort: 'desc',
+  //     },
+  //   },
+  // });
+
+  let whereConditions = [`(is_public = 'all' and authorId != ?)`];
+
+  const queryParams = [userId];
+
+  if (friendIdList.length > 0) {
+    const friendIdCondition = `(is_public != 'private' and authorId IN (${friendIdList
+      .map(() => '?')
+      .join(',')}))`;
+    whereConditions.push(friendIdCondition);
+    queryParams.push(...friendIdList);
+  }
+
+  const matchCondition = `(content LIKE ? OR title LIKE ?)`;
+  const fullTextQueryParameter = `%${fullTextQuery}%`;
+  whereConditions.push(matchCondition);
+  queryParams.push(fullTextQueryParameter, fullTextQueryParameter);
+
+  const whereClause = whereConditions.join(' AND ');
+
+  const searchQuery = `SELECT d.*, u.id AS authorId, u.username, u.email, fu.url AS profileImage
+FROM diary d
+JOIN user u ON d.authorId = u.id
+LEFT JOIN fileupload fu ON u.id = fu.userId
+WHERE ${whereClause}
+ORDER BY match(title, content) against('${fullTextQuery}' in boolean mode) DESC
+LIMIT ${limit}
+OFFSET ${(page - 1) * limit};`;
+
+  const searchedDiary = await query(searchQuery, queryParams);
+
   console.log(fullTextQuery);
   console.log(searchedDiary);
 
@@ -588,14 +616,20 @@ export const searchDiaryService = async (
     return response;
   }
 
-  const { totalItem, totalPage } = await calculatePageInfo(
-    'diary',
-    limit,
-    searchDiaryQuery.where,
-  );
+  // const { totalItem, totalPage } = await calculatePageInfo(
+  //   'diary',
+  //   limit,
+  //   searchDiaryQuery.where,
+  // );
+
+  const countQuery = `select count(*) as totalItem from diary where ${whereClause}`;
+
+  const totalItemResult = await query(countQuery, queryParams);
+  const totalItem = totalItemResult[0].totalItem;
+  const totalPage = Math.ceil(totalItem / limit);
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
-  const diaryResponseDataList = searchedDiary.map((diary) =>
+  const diaryResponseDataList = searchedDiary.map((diary: any) =>
     plainToClass(DiaryResponseDTO, diary, { excludeExtraneousValues: true }),
   );
 

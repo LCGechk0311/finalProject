@@ -56,13 +56,6 @@ diaryRouter.post(
   // wrapAsyncController(createdGPTCommentMiddleware),
 );
 
-// // 일기 초대 메일?
-// diaryRouter.post(
-//   '/recommendation/:diaryId',
-//   jwtAuthentication,
-//   wrapAsyncController(sendRecommendationEmail),
-// );
-
 // 감정 선택?
 diaryRouter.put(
   '/selectEmotion/:diaryId',
@@ -115,7 +108,7 @@ diaryRouter
     jwtAuthentication,
     // diaryUpload,
     wrapAsyncController(updateDiary),
-    // wrapAsyncController(updatedGPTComment),
+    wrapAsyncController(updatedGPTComment),
   )
   .delete(jwtAuthentication, wrapAsyncController(deleteDiary));
 

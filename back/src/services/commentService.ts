@@ -4,9 +4,6 @@ import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { successApiResponseDTO } from '../utils/successResult';
 import { nonAuthorizedApiResponseDTO } from '../utils/nonAuthorizeResult';
 import axios from 'axios';
-import { Emoji } from '../types/emoji';
-import { calculatePageInfo } from '../utils/pageInfo';
-import { prisma } from '../../prisma/prismaClient';
 import { callChatGPT } from '../utils/chatGPT';
 import dotenv from 'dotenv';
 import { query } from '../utils/DB';
@@ -35,22 +32,26 @@ export async function createdComment(
 
   const emotionType = emotion.emotion;
 
-  const emojis = await prisma.emoji.findMany({
-    where: {
-      type: emotionType,
+  const sqlQuery = `select * from emoji where type = ?;`;
+
+  const emojiResult = await query(sqlQuery, [emotionType]);
+
+  const randomIndex = Math.floor(Math.random() * emojiResult.length);
+
+  const emoji = emojiResult[randomIndex].emotion;
+
+  const createQuery = `insert into comment (id,writeAi, diaryId, authorId, content, nestedComment, emoji)
+  values (UUID(),UUID(),?,?,?,?,?)`;
+
+  await query(createQuery, [diary_id, authorId, content, nestedComment, emoji]);
+
+  const commentResponseData = plainToClass(
+    commentResponseDTO,
+    {},
+    {
+      excludeExtraneousValues: true,
     },
-  });
-
-  const randomEmoji: Emoji = emojis[Math.floor(Math.random() * emojis.length)];
-  const emoji = randomEmoji.emotion;
-
-  const comment = await prisma.comment.create({
-    data: { diaryId: diary_id, authorId, content, nestedComment, emoji },
-  });
-
-  const commentResponseData = plainToClass(commentResponseDTO, comment, {
-    excludeExtraneousValues: true,
-  });
+  );
   const response = successApiResponseDTO(commentResponseData);
   return response;
 }
@@ -61,61 +62,97 @@ export async function getCommentByDiaryId(
   page: number,
   limit: number,
 ) {
-  const comment = await prisma.comment.findMany({
-    skip: (page - 1) * limit,
-    take: limit,
-    where: { diaryId: diary_id, nestedComment: null },
-    select: {
-      id: true,
-      // 댓글 작성자의 id, username, porfileImage를 함께 응답
-      author: {
-        select: {
-          id: true,
-          username: true,
-          profileImage: true,
-        },
-      },
-      diaryId: true,
-      content: true,
-      emoji: true,
-      createdAt: true,
-      updatedAt: true,
-      // 대댓글은 reComment에 배열로 포함하여 응답
-      reComment: {
-        select: {
-          id: true,
-          author: {
-            select: {
-              id: true,
-              username: true,
-              profileImage: true,
-            },
-          },
-          diaryId: true,
-          content: true,
-          emoji: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      },
-    },
-    orderBy: { createdAt: 'asc' },
-  });
+  // const comment = await prisma.comment.findMany({
+  //   skip: (page - 1) * limit,
+  //   take: limit,
+  //   where: { diaryId: diary_id, nestedComment: null },
+  //   select: {
+  //     id: true,
+  //     // 댓글 작성자의 id, username, porfileImage를 함께 응답
+  //     author: {
+  //       select: {
+  //         id: true,
+  //         username: true,
+  //         profileImage: true,
+  //       },
+  //     },
+  //     diaryId: true,
+  //     content: true,
+  //     emoji: true,
+  //     createdAt: true,
+  //     updatedAt: true,
+  //     // 대댓글은 reComment에 배열로 포함하여 응답
+  //     reComment: {
+  //       select: {
+  //         id: true,
+  //         author: {
+  //           select: {
+  //             id: true,
+  //             username: true,
+  //             profileImage: true,
+  //           },
+  //         },
+  //         diaryId: true,
+  //         content: true,
+  //         emoji: true,
+  //         createdAt: true,
+  //         updatedAt: true,
+  //       },
+  //     },
+  //   },
+  //   orderBy: { createdAt: 'asc' },
+  // });
+  const sqlQuery = `
+  SELECT 
+    c.id, 
+    c.diaryId, 
+    c.content, 
+    c.emoji, 
+    c.createdAt, 
+    c.updatedAt,
+    a.id as authorId, 
+    a.username as username, 
+    fu.url as authorProfileImage,
+    rc.id as reCommentId, 
+    rc.diaryId as reCommentDiaryId, 
+    rc.content as reCommentContent,
+    rc.emoji as reCommentEmoji, 
+    rc.createdAt as reCommentCreatedAt, 
+    rc.updatedAt as reCommentUpdatedAt,
+    ra.id as reCommentAuthorId, 
+    ra.username as username, 
+    fu2.url as reCommentAuthorProfileImage
+FROM comment c
+LEFT JOIN user a ON c.authorId = a.id
+LEFT JOIN fileupload fu ON a.id = fu.userId
+LEFT JOIN comment rc ON c.id = rc.nestedComment
+LEFT JOIN user ra ON rc.authorId = ra.id
+LEFT JOIN fileupload fu2 ON ra.id = fu2.userId
+WHERE c.diaryId = ?
+ORDER BY c.createdAt ASC
+LIMIT ?, ?;
+`;
 
+  const comment = await query(sqlQuery, [diary_id, (page - 1) * limit, limit]);
   // 댓글이 없을 경우 응답
-  if (comment.length == 0) {
+  if (comment.length === 0) {
     const response = emptyApiResponseDTO();
     return response;
   }
 
-  const { totalItem, totalPage } = await calculatePageInfo('comment', limit, {
-    diaryId: diary_id,
-    nestedComment: null,
-  });
+  const totalItemQuery = `
+      SELECT COUNT(*) AS totalCount
+      FROM comment
+      WHERE diaryId = ?;
+    `;
+  const totalItemValues = [diary_id];
+  const totalItemResult = await query(totalItemQuery, totalItemValues);
+  const totalItem = totalItemResult[0].totalCount;
+  const totalPage = Math.ceil(totalItem / limit);
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
 
-  const commentResponseDataList = comment.map((comment) =>
+  const commentResponseDataList = comment.map((comment: any) =>
     plainToClass(commentResponseDTO, comment, {
       excludeExtraneousValues: true,
     }),
@@ -151,29 +188,29 @@ export async function updatedComment(
 
   const emotionType = emotion.emoji;
 
-  const emojis = await prisma.emoji.findMany({
-    where: {
-      type: emotionType,
-    },
-  });
+  const sqlQuery = `select * from emoji where type = ?;`;
 
-  const randomEmoji: Emoji = emojis[Math.floor(Math.random() * emojis.length)];
-  const emoji = randomEmoji.emotion;
+  const emojiResult = await query(sqlQuery, [emotionType]);
+
+  const randomIndex = Math.floor(Math.random() * emojiResult.length);
+
+  const emoji = emojiResult[randomIndex].emotion;
 
   // 댓글 작성자 본인인지 확인을 위한 조회
-  const userCheck = await prisma.comment.findUnique({
-    where: { id: comment_id },
-  });
+  const userCheckQuery = `select authorId from comment where id = ?;`;
+
+  const userCheckResult = await query(userCheckQuery, [comment_id]);
 
   // 댓글 작성자가 맞다면 수정 진행
-  if (userCheck.authorId == authorId) {
-    const comment = await prisma.comment.update({
-      where: { id: comment_id },
-      data: {
-        content: inputData.content,
-        emoji: emoji,
-      },
-    });
+  if (userCheckResult[0].authorId === authorId) {
+    const updateCommentQuery = `update comment set content = ?, emoji = ?
+    where id = ?;`;
+
+    await query(updateCommentQuery,[inputData.content, emoji, comment_id]);
+
+    const selectQuery = `select * from comment where id = ?;`;
+
+    const comment = await query(selectQuery, [comment_id]);
 
     const commentResponseData = plainToClass(commentResponseDTO, comment, {
       excludeExtraneousValues: true,
@@ -192,17 +229,18 @@ export async function updatedComment(
 // 댓글 삭제
 export async function deletedComment(comment_id: string, authorId: string) {
   // 댓글 작성자 본인인지 확인을 위한 조회
-  const userCheck = await prisma.comment.findUnique({
-    where: { id: comment_id },
-  });
+  const userCheckQuery = `select authorId, writeAi from comment where id = ?;`;
+
+  const userCheckResult = await query(userCheckQuery, [comment_id]);
 
   // 댓글 작성자가 맞다면 삭제 진행
-  if (userCheck.authorId == authorId || userCheck.writeAi == authorId) {
-    const comment = await prisma.comment.delete({
-      where: { id: comment_id },
-    });
+  if (userCheckResult[0].authorId == authorId || userCheckResult[0].writeAi == authorId) {
 
-    const commentResponseData = plainToClass(commentResponseDTO, comment, {
+    const deleteQuery = `delete from comment where id = ?;`;
+
+    await query(deleteQuery, [comment_id]);
+
+    const commentResponseData = plainToClass(commentResponseDTO, {}, {
       excludeExtraneousValues: true,
     });
 
@@ -224,35 +262,25 @@ export async function createdGPTComment(
 ) {
   const testChatGPT = await callChatGPT(content);
 
-  // const checkDiary = await prisma.diary.findUnique({
-  //   where: { id: diaryId },
-  // });
-
   const checkDiaryQuery = `
       SELECT * FROM diary
       WHERE id = ?;
     `;
-    const checkDiaryValues = [diaryId];
-    const checkDiaryResult = await query(checkDiaryQuery, checkDiaryValues);
+  const checkDiaryValues = [diaryId];
+  const checkDiaryResult = await query(checkDiaryQuery, checkDiaryValues);
 
-    if (checkDiaryResult.length > 0) {
-      const createCommentQuery = `
+  if (checkDiaryResult.length > 0) {
+    const createCommentQuery = `
         INSERT INTO comment (diaryId, authorId, content, writeAi)
         VALUES (?, ?, ?, ?);
       `;
-      const createCommentValues = [diaryId, process.env.AI_ID, testChatGPT, authorId];
-      await query(createCommentQuery, createCommentValues);
-      
-
-  // if (checkDiary != null) {
-  //   await prisma.comment.create({
-  //     data: {
-  //       diaryId,
-  //       authorId: process.env.AI_ID,
-  //       content: testChatGPT,
-  //       writeAi: authorId,
-  //     },
-  //   });
+    const createCommentValues = [
+      diaryId,
+      process.env.AI_ID,
+      testChatGPT,
+      authorId,
+    ];
+    await query(createCommentQuery, createCommentValues);
   }
 }
 
@@ -264,14 +292,15 @@ export async function updatedGPTComment(
 ) {
   const testChatGPT = await callChatGPT(content);
 
-  const comment = await prisma.comment.updateMany({
-    where: { diaryId, writeAi: authorId },
-    data: {
-      content: testChatGPT,
-    },
-  });
+  const updateQuery = `
+    UPDATE comments 
+    SET content = ? 
+    WHERE diaryId = ? AND writeAi = ?;
+  `;
 
-  if (comment.count == 0) {
+  const updateResult = await query(updateQuery, [testChatGPT, diaryId, authorId]);
+
+  if (updateResult.affectedRows === 0) {
     await createdGPTComment(testChatGPT, authorId, diaryId);
   }
 }

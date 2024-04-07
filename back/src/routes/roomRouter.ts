@@ -4,7 +4,6 @@ import {
 } from '../controllers/chatController';
 import { Router } from 'express';
 import { wrapAsyncController } from '../utils/wrapper';
-import favoriteRouter from 'routes/favoriteRouter';
 const roomRouter = Router();
 
 /** @description 모든 채팅룸 */

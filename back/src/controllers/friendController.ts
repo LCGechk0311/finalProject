@@ -9,6 +9,7 @@ import {
   rejectFriend,
   getMyFriends,
   deleteFriend,
+  reqList,
 } from '../services/friendService';
 import { IRequest } from 'types/request';
 
@@ -31,10 +32,6 @@ export const friendRequest = async (
   }
   const alreadyFriends = await weAreFriends(userId, requestId);
   if (alreadyFriends) {
-    return res.status(400).json({ message: '이미 요청 했거나 우린 친구!' });
-  }
-  const existingFriendRequest = await weAreFriends(requestId, userId);
-  if (existingFriendRequest) {
     return res.status(400).json({ message: '이미 요청 했거나 우린 친구!' });
   }
   const request = await createFriends(userId, requestId);
@@ -103,6 +100,13 @@ export const friendAccept = async (
    */
   const userId = req.user.id;
   const requestId = req.params.userId;
+
+  const exFriendReqList = await reqList(userId, requestId);
+
+  if(!exFriendReqList){
+    return res.status(400).json({ message: '잘못된 요청' });
+  }
+  
   const accept = await acceptFriend(userId, requestId);
   res.status(200).json(accept);
 };
@@ -119,6 +123,13 @@ export const friendReject = async (
    */
   const userId = req.user.id;
   const requestId = req.params.userId;
+
+  const exFriendReqList = await reqList(userId, requestId);
+
+  if(!exFriendReqList){
+    return res.status(400).json({ message: '잘못된 요청' });
+  }
+
   const reject = await rejectFriend(userId, requestId);
   res.status(200).json(reject);
 };
