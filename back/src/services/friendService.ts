@@ -5,10 +5,6 @@ import { FriendResponseDTO, PaginationResponseDTO } from '../dtos/friendDTO';
 import { userResponseDTO } from '../dtos/userDTO';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { successApiResponseDTO } from '../utils/successResult';
-import {
-  calculatePageInfoForFriend,
-  userCalculatePageInfo,
-} from '../utils/pageInfo';
 import { plainToClass } from 'class-transformer';
 
 export const checkFriend = async (userId: string, requestId: string) => {
@@ -28,6 +24,8 @@ export const checkFriend = async (userId: string, requestId: string) => {
   //   },
   // });
 
+  // return friend;
+
   const checkFriendSql = `
       SELECT * FROM friend
       WHERE 
@@ -39,8 +37,6 @@ export const checkFriend = async (userId: string, requestId: string) => {
     const result = await query(checkFriendSql, [userId, requestId, requestId, userId]);
 
     return result.length > 0 ? result[0] : null;
-
-  // return friend;
 };
 
 /** @description 친구 여부 */
@@ -140,12 +136,6 @@ export const listRequestsSent = async (
 
 /** @description 요청 취소 */
 export const cancelRequest = async (userId: string, requestId: string) => {
-  // const friend = await prisma.friend.deleteMany({
-  //   where: {
-  //     sentUserId: userId,
-  //     receivedUserId: requestId,
-  //   },
-  // });
 
   const cancelRequestSql = `
       DELETE FROM friend
@@ -265,15 +255,6 @@ export const rejectFriend = async (userId: string, requestId: string) => {
  * @returns
  */
 export const getMyWholeFriends = async (userId: string) => {
-  const friendList = await prisma.friend.findMany({
-    where: {
-      OR: [{ sentUserId: userId }, { receivedUserId: userId }],
-      status: true,
-    },
-  });
-
-  // return friendList;
-
   const sqlQuery = `
     SELECT *
     FROM Friend
@@ -281,16 +262,7 @@ export const getMyWholeFriends = async (userId: string) => {
   `;
 
   const result = await query(sqlQuery, [userId, userId]);
-  return friendList;
-  // const sqlQuery = `
-  //     SELECT *
-  //     FROM Friend
-  //     WHERE (sentUserId = ? OR receivedUserId = ?) AND status = true
-  //   `;
-
-  //   // Execute SQL query to get whole friends
-  //   const result = await query(sqlQuery, [userId, userId]);
-  //   return result;
+  return result;
 };
 
 /** @description 친구 목록 */

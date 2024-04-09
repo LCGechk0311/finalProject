@@ -188,7 +188,7 @@ export const getOtherUsersDiary = async (
   //친구목록 가져오기
   const friends = await getMyWholeFriends(userId);
 
-  const friendIdList = friends.map((friend) => {
+  const friendIdList = friends.map((friend : any) => {
     return userId == friend.sentUserId
       ? friend.receivedUserId
       : friend.sentUserId;
@@ -357,7 +357,7 @@ export const searchDiary = async (
 
   const friends = await getMyWholeFriends(userId);
 
-  const friendIdList = friends.map((friend) => {
+  const friendIdList = friends.map((friend : any) => {
     return userId == friend.sentUserId
       ? friend.receivedUserId
       : friend.sentUserId;

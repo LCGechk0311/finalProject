@@ -3,12 +3,12 @@ import bcrypt from 'bcrypt';
 import { plainToClass } from 'class-transformer';
 import { userResponseDTO } from '../dtos/userDTO';
 import { successApiResponseDTO } from '../utils/successResult';
-import { calculatePageInfo } from '../utils/pageInfo';
 import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { IUser } from 'types/user';
 import redisClient, { query } from '../utils/DB';
+import { getMyWholeFriends } from './friendService';
 
 export const createUser = async (inputData: IUser) => {
   const { username, password, email } = inputData;
@@ -60,18 +60,28 @@ export const getAllUsers = async (
   page: number,
   limit: number,
 ) => {
-
+  //   const userQuery = `
+  //   select u.*, fu.url as profileImage, coalesce((select status from Friend where sentUserId = u.id OR receivedUserId = u.id), false) as status
+  //   from user u
+  //   left join fileupload fu on u.id = fu.userId
+  //   LIMIT ${limit}
+  //   OFFSET ${(page - 1) * limit};
+  // `;
   const userQuery = `
-  SELECT *
-  FROM user
-  LIMIT ${limit}
-  OFFSET ${(page - 1) * limit};
+SELECT u.*, fu.url as profileImage,
+       case when f.status is not null then f.status else false end as status
+from user u
+LEFT JOIN fileupload fu ON u.id = fu.userId
+LEFT JOIN Friend f ON u.id = f.sentUserId OR u.id = f.receivedUserId
+LIMIT ${limit}
+OFFSET ${(page - 1) * limit};
 `;
 
   const userList = await query(userQuery);
+  console.log(userList);
+  console.log(1);
 
   for (const user of userList) {
-    console.log(user);
     const diaryQuery = `
     SELECT *
     FROM Diary
@@ -81,9 +91,10 @@ export const getAllUsers = async (
 
     const firstDiary = await query(diaryQuery);
     if (firstDiary[0]) {
-      user.latestEmoji = firstDiary.emoji;
+      user.latestEmoji = firstDiary[0].emoji;
     }
   }
+  console.log(userList);
 
   const countQuery = `select count(*) as totalItem from user`;
 
@@ -93,10 +104,8 @@ export const getAllUsers = async (
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
 
-  console.log(userList);
-  const userResponseDataList = userList.map(
-    (user: { userId: string }) =>
-      plainToClass(userResponseDTO, user, { excludeExtraneousValues: true }),
+  const userResponseDataList = userList.map((user: { userId: string }) =>
+    plainToClass(userResponseDTO, user, { excludeExtraneousValues: true }),
   );
 
   const response = new PaginationResponseDTO(
@@ -114,80 +123,66 @@ export const getMyFriends = async (
   page: number,
   limit: number,
 ) => {
-  const sqlQuery = `
-  SELECT
-    CASE
-      WHEN sentUserId = ? THEN receivedUserId
-      ELSE sentUserId
-    END AS friendId
-  FROM Friend
-  WHERE (sentUserId = ? OR receivedUserId = ?) AND status = true
-`;
+  const friendIds = await getMyWholeFriends(userId);
+  const friendIdList = friendIds.map((friend: any) => {
+    return userId == friend.sentUserId
+      ? friend.receivedUserId
+      : friend.sentUserId;
+  });
 
-  const rows = await query(sqlQuery, [userId, userId, userId]);
-
-  const friendIds = rows.map((row: { friendId: string }) => row.friendId);
-
-  // const friendsInfo = await prisma.user.findMany({
-  //   take: limit,
-  //   skip: (page - 1) * limit,
-  //   where: {
-  //     id: {
-  //       in: friendIds,
-  //     },
-  //   },
-  //   include: {
-  //     profileImage: true,
-  //   },
-  // });
-
-  const sqlQuery1 = `
-    SELECT * FROM user 
-    WHERE id IN (${friendIds.map(() => '?').join(', ')})
-    LIMIT ?
-    OFFSET ?;
-  `;
-
-  const friendsInfo = await query(sqlQuery1, [...friendIds, limit, (page - 1) * limit]);
-
+  //   const friendQuery = `
+  //   SELECT user.id, user.username, user.email, user.description, user.latestEmoji, profileImage.*
+  //   FROM User AS user
+  //   LEFT OUTER JOIN fileUpload AS profileImage ON user.id = profileImage.userId
+  //   ${friendIdList.length > 0 ? `WHERE user.id IN (${friendIdList.map(() => '?').join(',')})` : ''}
+  //   LIMIT ?
+  //   OFFSET ?;
+  // `;
   const friendQuery = `
-  SELECT user.*, profileImage.*
-  FROM User AS user
-  LEFT JOIN fileUpload AS profileImage ON user.id = profileImage.userId
-  ${friendIds.length > 0 ? `WHERE user.id IN (${friendIds.join(', ')})` : ''}
-  LIMIT ${limit}
-  OFFSET ${(page - 1) * limit};
+SELECT user.id, user.username, user.email, user.description, user.latestEmoji, fu.url as profileImage
+FROM User AS user
+left join fileupload fu on user.id = fu.userId
+${
+  friendIdList.length > 0
+    ? `WHERE user.id IN (${friendIdList.map(() => '?').join(',')})`
+    : ''
+}
+LIMIT ?
+OFFSET ?;
 `;
 
-  const friendList = await query(friendQuery);
+  const friendList = await query(friendQuery, [
+    ...friendIdList,
+    limit,
+    (page - 1) * limit,
+  ]);
 
   for (const friend of friendList) {
     const diaryQuery = `
-    SELECT *
-    FROM Diary
-    WHERE authorId = ${friend.id}
+    SELECT * FROM diary
+    WHERE authorId = ?
     ORDER BY createdDate ASC
-    LIMIT 1;
+    limit 1;
   `;
 
-    const [firstDiary] = await query(diaryQuery);
+    const firstDiary = await query(diaryQuery, [friend.id]);
 
     if (firstDiary) {
-      friend.latestEmoji = firstDiary.emoji;
+      friend.latestEmoji = firstDiary[0].emoji;
     }
   }
 
-  const friendsWithIsFriend = friendsInfo.map((friend : any) => {
-    friend.isFriend = true; // 또는 false
-    return friend;
-  });
+  const countQuery = `SELECT COUNT(*) FROM user WHERE user.id IN (${friendIdList
+    .map(() => '?')
+    .join(',')});`;
 
-  const totalItem = friendsWithIsFriend.length;
+  const tatalItemResult = await query(countQuery, [...friendIdList]);
+  const totalItem = tatalItemResult[0].length;
   const totalPage = Math.ceil(totalItem / limit);
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
 
-  const userResponseDataList = friendsWithIsFriend.map((user : any) =>
+  const userResponseDataList = friendList.map((user: any) =>
     plainToClass(userResponseDTO, user, { excludeExtraneousValues: true }),
   );
 
@@ -203,14 +198,13 @@ export const getMyFriends = async (
 
 export const logout = async (sessionID: string) => {
   const sessionKey = `session:${sessionID}`;
-  
+
   try {
     await redisClient.del(sessionKey);
-
   } catch (error) {
     console.error('세션 삭제 실패:', error);
   }
-}
+};
 
 export const getUserInfo = async (userId: string) => {
   const sqlQuery = `
@@ -301,8 +295,6 @@ export const forgotUserPassword = async (email: string) => {
 
   if (user.length === 0) {
     const response = emptyApiResponseDTO();
-    console.log(1);
-    console.log(response);
     return response;
   }
 

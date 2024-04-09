@@ -4,7 +4,6 @@ import { plainToClass } from 'class-transformer';
 import { successApiResponseDTO } from '../utils/successResult';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { generateEmotionString } from '../utils/emotionFlask';
-import { prisma } from '../../prisma/prismaClient';
 import { generateError } from '../utils/errorGenerator';
 import { findMode } from '../utils/modeEmotion';
 import { query } from '../utils/DB';
@@ -252,57 +251,32 @@ export const getFriendsDiaryService = async (
   emotion: string | undefined,
   friendIdList: string[],
 ) => {
-  // const friendsDiaryQuery = {
-  //   where: {
-  //     // 친구 글 (비공개 제외)
-  //     authorId: { in: friendIdList },
-  //     NOT: [
-  //       {
-  //         is_public: 'private',
-  //       },
-  //     ],
-  //   },
-  //   skip: (page - 1) * limit,
-  //   take: limit,
-  //   include: {
-  //     author: {
-  //       select: {
-  //         id: true,
-  //         username: true,
-  //         email: true,
-  //         profileImage: true,
-  //       },
-  //     },
-  //   },
-  // };
+  let queryParams = [];
 
-  // if (emotion != 'all') {
-  //   (friendsDiaryQuery.where as any).emotion = emotion;
-  // }
+  let whereConditions = [
+    `authorId IN (${friendIdList
+      .map((id) => `'${id}'`)
+      .join(', ')}) AND is_public != 'private'`,
+  ];
 
-  let whereClause = `authorId IN (${friendIdList
-    .map((id) => `'${id}'`)
-    .join(', ')}) AND is_public != 'private'`;
-  if (emotion && emotion !== 'all') {
-    whereClause += ` AND emotion = '${emotion}'`;
+  if (emotion && emotion !== 'all' && emotion !== 'undefined') {
+    const emotionConditions = ` AND emotion = ?`;
+    whereConditions.push(emotionConditions);
+    queryParams.push(emotion);
   }
 
   const diaryQuery = `
-      SELECT d.*, u.id as authorId, u.username, u.email, u.profileImage
+      SELECT d.*, u.id as authorId, u.username, u.email, fu.url AS profileImage
       FROM diary d
       JOIN user u ON d.authorId = u.id
-      WHERE ${whereClause}
+      LEFT JOIN fileupload fu ON u.id = fu.userId
+      WHERE ${whereConditions}
       ORDER BY d.createdDate DESC
-      LIMIT ?, ?;
+      LIMIT ${limit}
+    OFFSET ${(page - 1) * limit};
     `;
 
-  const friendsDiary = await query(diaryQuery, [(page - 1) * limit, limit]);
-
-  // 친구들의 다이어리 가져오기 (최신순)
-  // const friendsDiary = await prisma.diary.findMany({
-  //   ...friendsDiaryQuery,
-  //   orderBy: { createdDate: 'desc' },
-  // });
+  const friendsDiary = await query(diaryQuery, queryParams);
 
   // 친구가 없거나 친구가 쓴 글이 없을 경우
   if (friendsDiary.length == 0) {
@@ -313,16 +287,9 @@ export const getFriendsDiaryService = async (
     plainToClass(DiaryResponseDTO, diary, { excludeExtraneousValues: true }),
   );
 
-  // 총 글 개수, 페이지 수
-  // const { totalItem, totalPage } = await calculatePageInfo(
-  //   'diary',
-  //   limit,
-  //   friendsDiaryQuery.where,
-  // );
+  const countQuery = `select count(*) as totalItem from diary where ${whereConditions}`;
 
-  const countQuery = `select count(*) as totalItem from diary where ${whereClause}`;
-
-  const totalItemResult = await query(countQuery);
+  const totalItemResult = await query(countQuery, queryParams);
   const totalItem = totalItemResult[0].totalItem;
   const totalPage = Math.ceil(totalItem / limit);
 
@@ -352,14 +319,6 @@ export const getAllDiaryService = async (
 
   const queryParams = [userId];
 
-  if (friendIdList.length > 0) {
-    const friendIdCondition = `(is_public != 'private' and authorId IN (${friendIdList
-      .map(() => '?')
-      .join(',')}))`;
-    whereConditions.push(friendIdCondition);
-    queryParams.push(...friendIdList);
-  }
-
   if (emotion && emotion !== 'all') {
     whereConditions.push(`emotion = ?`);
     queryParams.push(emotion);
@@ -384,7 +343,6 @@ export const getAllDiaryService = async (
   const diaryResponseDataList = allDiary.map((diary: any) =>
     plainToClass(DiaryResponseDTO, diary, { excludeExtraneousValues: true }),
   );
-  console.log(diaryResponseDataList);
 
   const countQuery = `select count(*) as totalItem from diary where ${whereConditions}`;
 
@@ -519,64 +477,11 @@ export const searchDiaryService = async (
   friendIdList: string[],
 ) => {
   const searchList = search.split(' ');
-  console.log(1);
-  console.log(searchList);
-  console.log(userId);
 
   const modifiedSearch = searchList.map((search) => {
     return `${search}`;
   });
   const fullTextQuery = modifiedSearch.join(' ');
-
-  // const searchDiaryQuery = {
-  //   skip: (page - 1) * limit,
-  //   take: limit,
-  //   include: {
-  //     author: {
-  //       select: {
-  //         id: true,
-  //         username: true,
-  //         email: true,
-  //         profileImage: true,
-  //       },
-  //     },
-  //   },
-  //   where: {
-  //     OR: [
-  //       {
-  //         // 전체공개 다이어리 ( 내 글 제외 )
-  //         is_public: 'all',
-  //         NOT: {
-  //           authorId: userId,
-  //         },
-  //       },
-  //       {
-  //         // 친구 글 (비공개 제외)
-  //         NOT: {
-  //           is_public: 'private',
-  //         },
-  //         authorId: { in: friendIdList },
-  //       },
-  //     ],
-  //     content: {
-  //       contains: fullTextQuery,
-  //     },
-  //     title: {
-  //       contains: fullTextQuery,
-  //     },
-  //   },
-  // };
-
-  // const searchedDiary = await prisma.diary.findMany({
-  //   ...searchDiaryQuery,
-  //   orderBy: {
-  //     _relevance: {
-  //       fields: ['title', 'content'],
-  //       search: fullTextQuery,
-  //       sort: 'desc',
-  //     },
-  //   },
-  // });
 
   let whereConditions = [`(is_public = 'all' and authorId != ?)`];
 

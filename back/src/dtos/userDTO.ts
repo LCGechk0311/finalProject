@@ -42,6 +42,9 @@ export class userResponseDTO {
 
   @Expose()
   latestEmoji : string;
+
+  @Expose()
+  status? : boolean;
 }
 
 export class userValidateDTO {
