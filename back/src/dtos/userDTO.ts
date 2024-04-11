@@ -35,6 +35,9 @@ export class userResponseDTO {
   profileImage: fileUpload[];
 
   @Expose()
+  profile: string;
+
+  @Expose()
   createdAt: Date;
 
   @Expose()
@@ -74,4 +77,8 @@ export class userUpdateValidateDTO {
   @IsOptional()
   @IsString({ each: true })
   profileImage: fileUpload[];
+
+  @IsOptional()
+  @IsString()
+  profile: string;
 }

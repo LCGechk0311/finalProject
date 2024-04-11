@@ -17,9 +17,10 @@ import {
   emailLink,
   testEmail,
   searchKeyword,
+  sessionMyInfo,
 } from '../controllers/userController';
 import { jwtAuthentication } from '../middlewares/authenticateJwt';
-import { fileUpload } from '../middlewares/uploadMiddleware';
+import { profileImageUpload } from '../middlewares/uploadMiddleware';
 import { wrapAsyncController } from '../utils/wrapper';
 import passport from 'passport';
 import { requireAuthentication } from '../middlewares/sessionAuthorization';
@@ -46,24 +47,16 @@ userRouter.get(
 );
 
 // 현재 유저 정보
-userRouter.get(
-  '/current',
-  jwtAuthentication,
-  wrapAsyncController(getMyInfo),
-);
+userRouter.get('/current', jwtAuthentication, wrapAsyncController(getMyInfo));
 
 userRouter.get(
   '/sessionCurrent',
   requireAuthentication,
-  wrapAsyncController(getMyInfo),
+  wrapAsyncController(sessionMyInfo),
 );
 
 // 모든 유저 정보
-userRouter.get(
-  '/allUser',
-  jwtAuthentication,
-  wrapAsyncController(getAllUser),
-);
+userRouter.get('/allUser', jwtAuthentication, wrapAsyncController(getAllUser));
 
 // 친구 유저 정보
 userRouter.get(
@@ -83,7 +76,7 @@ userRouter.post(
 userRouter
   .route('/:userId')
   .get(jwtAuthentication, wrapAsyncController(getUserId))
-  .put(jwtAuthentication, fileUpload, wrapAsyncController(updateUser))
+  .put(jwtAuthentication, profileImageUpload, wrapAsyncController(updateUser))
   .delete(jwtAuthentication, wrapAsyncController(deleteUser));
 
 // 비밀번호 재설정 이메일 보내기

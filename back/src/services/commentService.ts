@@ -145,8 +145,7 @@ LIMIT ?, ?;
       FROM comment
       WHERE diaryId = ?;
     `;
-  const totalItemValues = [diary_id];
-  const totalItemResult = await query(totalItemQuery, totalItemValues);
+  const totalItemResult = await query(totalItemQuery, [diary_id]);
   const totalItem = totalItemResult[0].totalCount;
   const totalPage = Math.ceil(totalItem / limit);
 

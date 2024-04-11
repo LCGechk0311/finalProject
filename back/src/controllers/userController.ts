@@ -54,17 +54,24 @@ export const getMyInfo = async (req: IRequest, res: Response) => {
      #swagger.summary = '현재 유저 정보'
         */
 
-  if (req.sessionID) {
-    const userId = req.session.userId;
-    const currentUserInfo = await myInfo(userId);
+  const userId = req.user.id;
+  const currentUserInfo = await myInfo(userId);
 
-    res.status(currentUserInfo.status).json(currentUserInfo);
-  } else {
-    const userId = req.user.id;
-    const currentUserInfo = await myInfo(userId);
+  res.status(currentUserInfo.status).json(currentUserInfo);
+};
 
-    res.status(currentUserInfo.status).json(currentUserInfo);
-  }
+export const sessionMyInfo = async (req: IRequest, res: Response) => {
+  /* #swagger.tags = ['Users']
+         #swagger.security = [{
+               "bearerAuth": []
+        }]
+     #swagger.summary = '현재 유저 정보'
+        */
+
+  const userId = req.session.userId;
+  const currentUserInfo = await myInfo(userId);
+
+  res.status(currentUserInfo.status).json(currentUserInfo);
 };
 
 export const getAllUser = async (req: IRequest, res: Response) => {

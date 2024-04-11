@@ -5,6 +5,7 @@ export interface IUser {
   password: string;
   description: string | null;
   profileImage: fileUpload[];
+  profile: string;
   updatedAt: Date;
   createdAt: Date;
   isFriend: Boolean;

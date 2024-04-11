@@ -68,18 +68,15 @@ export const getAllUsers = async (
   //   OFFSET ${(page - 1) * limit};
   // `;
   const userQuery = `
-SELECT u.*, fu.url as profileImage,
+SELECT u.*,
        case when f.status is not null then f.status else false end as status
 from user u
-LEFT JOIN fileupload fu ON u.id = fu.userId
 LEFT JOIN Friend f ON u.id = f.sentUserId OR u.id = f.receivedUserId
 LIMIT ${limit}
 OFFSET ${(page - 1) * limit};
 `;
 
   const userList = await query(userQuery);
-  console.log(userList);
-  console.log(1);
 
   for (const user of userList) {
     const diaryQuery = `
@@ -94,7 +91,6 @@ OFFSET ${(page - 1) * limit};
       user.latestEmoji = firstDiary[0].emoji;
     }
   }
-  console.log(userList);
 
   const countQuery = `select count(*) as totalItem from user`;
 
@@ -139,9 +135,8 @@ export const getMyFriends = async (
   //   OFFSET ?;
   // `;
   const friendQuery = `
-SELECT user.id, user.username, user.email, user.description, user.latestEmoji, fu.url as profileImage
+SELECT user.id, user.username, user.email, user.description, user.latestEmoji, user.profile
 FROM User AS user
-left join fileupload fu on user.id = fu.userId
 ${
   friendIdList.length > 0
     ? `WHERE user.id IN (${friendIdList.map(() => '?').join(',')})`
@@ -208,9 +203,8 @@ export const logout = async (sessionID: string) => {
 
 export const getUserInfo = async (userId: string) => {
   const sqlQuery = `
-    SELECT user.*, fileUpload.*
+    SELECT user.*
     FROM user
-    LEFT JOIN fileUpload ON user.id = fileUpload.userId
     WHERE user.id = ?;
   `;
 

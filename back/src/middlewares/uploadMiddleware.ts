@@ -1,7 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { fileUploadMiddleware } from './fileMiddleware';
 
-import { FileObjects } from '../types/upload';
+import { CustomFile, FileObjects } from '../types/upload';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { prisma } from '../../prisma/prismaClient';
 import { generateError } from '../utils/errorGenerator';
@@ -237,4 +237,209 @@ export const postDiaryUpload = async (
   next: NextFunction,
 ) => {
   handleFileUpload(req, res, next, 'postDiary');
+};
+
+export const s3upload = async (
+  req: IRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  s3FileUpload(req, res, next, 'profile');
+};
+
+import aws from 'aws-sdk';
+import dotenv from 'dotenv';
+import { v4 as uuidv4 } from 'uuid';
+import { query } from '../utils/DB';
+import multerS3 from 'multer-s3';
+dotenv.config();
+aws.config.update({
+  accessKeyId: process.env.AWS_ACCESS_KEY,
+  secretAccessKey: process.env.AWS_SECRET_KEY,
+  region: 'ap-northeast-2',
+});
+
+const s3 = new aws.S3();
+
+const uploadImagesMulter = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: 'lcgtestbucket1',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    acl: 'public-read',
+    metadata: function (req, file, cb) {
+      cb(null, { fieldName: file.fieldname });
+    },
+    key: function (req, file, cb) {
+      cb(null, `contents/${Date.now()}_${file.originalname}`);
+    },
+  }),
+}).single('image');
+
+export const profileImageUpload = (
+  req: IRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  uploadImagesMulter(req, res, async (err: any) => {
+    try {
+      if (err instanceof multer.MulterError) {
+        generateError(400, 'upload error');
+      } else if (err) {
+        generateError(500, 'Internal server error');
+      }
+      if (req.file) {
+        const { userId } = req.params;
+
+        const isFileQuery = `select profile from user where id = ?;`;
+
+        const isFile = await query(isFileQuery, [userId]);
+
+        if (isFile[0].profile !== null) {
+
+          const parts = isFile[0].profile.split('/');
+
+          const fileKey = 'contents/' + parts[parts.length - 1];
+
+          await deleteObjectFromS3(fileKey);
+
+          const deleteQuery = `UPDATE user
+          SET profile = NULL
+          WHERE id = ?;`;
+
+          await query(deleteQuery, [userId]);
+        }
+
+        const updateFileQuery = `update user set profile = ? where id = ?;`;
+        await query(updateFileQuery, [req.file.location, userId]);
+      }
+      next();
+    } catch (err) {
+      next(err);
+    }
+  });
+};
+const upload = multer({
+  storage: multer.memoryStorage(),
+}).array('filesUpload', 5);
+const s3FileUpload = (
+  req: IRequest,
+  res: Response,
+  next: NextFunction,
+  type: 'profile' | 'diary' | 'postDiary',
+) => {
+  upload(req, res, async (err: any) => {
+    try {
+      if (err instanceof multer.MulterError) {
+        generateError(400, 'upload error');
+      } else if (err) {
+        generateError(500, 'Internal server error');
+      }
+
+      const files: FileObjects[] = req.files
+        ? ([] as FileObjects[]).concat(...Object.values(req.files))
+        : [];
+      if (type === 'profile' || type === 'postDiary') {
+        if (files.length >= 2) {
+          const firstFileType = files[0].mimetype;
+          const areAllFilesSameType = files.every(
+            (file) => file.mimetype === firstFileType,
+          );
+
+          if (!areAllFilesSameType) {
+            generateError(400, 'Files have different types');
+          }
+        }
+      }
+
+      const filePaths = files.map((file) => ({
+        filename: uuidv4() + '-' + file.originalname,
+        buffer: file.buffer,
+      }));
+
+      if (type === 'profile') {
+        if (files.length >= 2) {
+          return res.status(400).send('최대 1개의 파일만 허용됩니다.');
+        }
+
+        if (files) {
+          // TODO 수정예정
+          const userId = req.params.userId;
+          const countFileQuery = `SELECT COUNT(*) as totalCount
+          FROM fileUpload
+          WHERE userId = ?;`;
+          const fileUploadInfo = await query(countFileQuery, [userId]);
+
+          const fileQuery = `SELECT fileKey
+          FROM fileUpload
+          WHERE userId = ?;`;
+          const fileUploadInfo2 = await query(fileQuery, [userId]);
+
+          if (fileUploadInfo[0].totalCount > 0) {
+            const deleteQuery = `DELETE FROM fileUpload WHERE userId = ?;`;
+
+            await query(deleteQuery, [userId]);
+            const fileKeys = fileUploadInfo2.map((row: any) => row.fileKey);
+            fileKeys.forEach(async (fileKey: any) => {
+              await deleteObjectFromS3(fileKey);
+            });
+          }
+
+          const profileImage = filePaths.map((fileKey, buffer) => ({
+            fileKey: fileKey,
+            userId: userId,
+            buffer: buffer,
+          }));
+
+          const insertQuery = `
+  INSERT INTO fileUpload (fileKey, userId)
+  VALUES ?;
+`;
+          const insertValues = profileImage.map((image) => [
+            image.fileKey.filename,
+            image.userId,
+          ]);
+
+          await query(insertQuery, [insertValues]);
+
+          for (const image of profileImage) {
+            await putObjectFromS3(image.fileKey.filename, image.fileKey.buffer);
+          }
+        }
+      }
+      next();
+    } catch (next) {
+      next(err);
+    }
+  });
+};
+
+const putObjectFromS3 = async (fileKey: string, file: any) => {
+  const buffer = Buffer.from(file.buffer);
+  const params = {
+    Bucket: 'lcgtestbucket1',
+    Key: fileKey,
+    Body: buffer,
+  };
+
+  try {
+    const s3UploadResult = await s3.upload(params).promise();
+    console.log(`${s3UploadResult} 111111111111111`);
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const deleteObjectFromS3 = async (fileKey: string) => {
+  const params = {
+    Bucket: 'lcgtestbucket1',
+    Key: fileKey,
+  };
+
+  try {
+    await s3.deleteObject(params).promise();
+    console.log(`Object with key '${fileKey}' deleted from S3 successfully.`);
+  } catch (error) {
+    console.error(`Error deleting object from S3: ${error.message}`);
+  }
 };
