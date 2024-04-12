@@ -12,14 +12,6 @@ export async function generateEmotionString(content: string) {
 
   const emojis = await Promise.all(
     labels.map(async (label: string) => {
-      // const emotions = await prisma.emoji.findMany({
-      //   where: {
-      //     type: label,
-      //   },
-      //   select: {
-      //     emotion: true,
-      //   },
-      // });
       const emotionsQuery = `
         SELECT emotion FROM emoji WHERE type = ?;
       `;

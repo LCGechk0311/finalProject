@@ -10,233 +10,12 @@ import path from 'path';
 import fs from 'fs';
 import { IRequest } from 'types/request';
 
-const handleFileUpload = async (
-  req: IRequest,
-  res: Response,
-  next: NextFunction,
-  type: 'profile' | 'diary' | 'postDiary',
-) => {
-  try {
-    /**
-     * transaction을 제대로 해주려면 dairyCreate 부분에서 upload를 해줘야할 것 같다.
-     */
-    await prisma.$transaction(async () => {
-      fileUploadMiddleware(req, res, async (err: any) => {
-        try {
-          if (err instanceof multer.MulterError) {
-            generateError(400, 'upload error');
-          } else if (err) {
-            generateError(500, 'Internal server error');
-          }
-
-          const files: FileObjects[] = req.files
-            ? ([] as FileObjects[]).concat(...Object.values(req.files))
-            : [];
-
-          if (type === 'profile' || type === 'postDiary') {
-            if (files.length >= 2) {
-              const firstFileType = files[0].mimetype;
-              const areAllFilesSameType = files.every(
-                (file) => file.mimetype === firstFileType,
-              );
-
-              if (!areAllFilesSameType) {
-                generateError(400, 'Files have different types');
-              }
-            }
-          }
-
-          const filePaths = files.map((file) => `fileUpload/${file.filename}`);
-
-          if (type === 'profile') {
-            if (req.files) {
-              const { userId } = req.params;
-              const foundUser = await prisma.user.findUnique({
-                where: { id: userId },
-                include: {
-                  profileImage: true,
-                },
-              });
-              await prisma.fileUpload.deleteMany({
-                where: {
-                  userId: userId,
-                },
-              });
-
-              if (!foundUser) {
-                const response = emptyApiResponseDTO();
-                return response;
-              }
-              const fileUploadCount = await prisma.fileUpload.count({
-                where: {
-                  userId,
-                },
-              });
-
-              if (fileUploadCount >= 2) {
-                throw new Error('최대 1개의 파일만 허용됩니다.');
-              }
-
-              const oldFiles = foundUser.profileImage;
-
-              if (oldFiles) {
-                oldFiles.forEach(async (file) => {
-                  const filenameToDelete = file.url.replace('fileUpload/', '');
-                  const filePathToDelete = path.join(
-                    './fileUpload',
-                    filenameToDelete,
-                  );
-                  fs.unlink(filePathToDelete, async (err) => {
-                    if (err) {
-                      console.error('Error deleting old file:', err);
-                      next(err);
-                    }
-                  });
-                });
-              }
-
-              const profileImage = filePaths.map((filename) => ({
-                url: filename,
-                userId: userId,
-              }));
-
-              await prisma.fileUpload.createMany({
-                data: profileImage,
-              });
-            }
-          } else if (type === 'diary') {
-            const { diaryId } = req.params;
-
-            // 삭제할 데이터가 있을시
-            if (req.body.deleteData) {
-              const urlsToDelete = req.body.deleteData;
-
-              await prisma.diaryFileUpload.deleteMany({
-                where: {
-                  url: {
-                    in: urlsToDelete,
-                  },
-                },
-              });
-
-              // Delete files from disk storage
-              urlsToDelete.forEach(async (url: string) => {
-                const filenameToDelete = url.replace('fileUpload/', '');
-                const filePathToDelete = path.join(
-                  './fileUpload',
-                  filenameToDelete,
-                );
-
-                fs.unlink(filePathToDelete, async (err) => {
-                  if (err) {
-                    console.error('Error deleting old file:', err);
-                    next(err);
-                  }
-                });
-              });
-            }
-
-            if (req.files) {
-              if (files.length >= 2) {
-                const firstFileType = files[0].mimetype;
-                const areAllFilesSameType = files.every(
-                  (file) => file.mimetype === firstFileType,
-                );
-
-                if (!areAllFilesSameType) {
-                  generateError(400, 'Files have different types');
-                }
-              }
-            }
-
-            const fileUploadCount = await prisma.diaryFileUpload.count({
-              where: {
-                diaryId,
-              },
-            });
-
-            if (fileUploadCount >= 5) {
-              throw new Error('최대 5개의 파일만 허용됩니다.');
-            }
-
-            const foundDiary = await prisma.diary.findUnique({
-              where: { id: diaryId },
-              include: {
-                filesUpload: true,
-              },
-            });
-
-            if (!foundDiary) {
-              const response = emptyApiResponseDTO();
-              return response;
-            }
-
-            const FilesUpload = filePaths.map((filename) => ({
-              url: filename,
-              diaryId: diaryId,
-            }));
-
-            await prisma.diaryFileUpload.createMany({
-              data: FilesUpload,
-            });
-          } else if (type === 'postDiary') {
-            const userId = req.user.id;
-            const foundDiary = await prisma.user.findUnique({
-              where: { id: userId },
-            });
-
-            if (!foundDiary) {
-              const response = emptyApiResponseDTO();
-              return response;
-            }
-
-            const FilesUpload = filePaths.map((filename) => ({
-              url: filename,
-            }));
-
-            await prisma.diaryFileUpload.createMany({
-              data: FilesUpload,
-            });
-
-            res.locals.myData = [];
-
-            for (const file of files) {
-              res.locals.myData.push(`fileUpload/${file.filename}`);
-            }
-          }
-          next();
-        } catch (error) {
-          next(error);
-        }
-      });
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const fileUpload = async (
-  req: IRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  handleFileUpload(req, res, next, 'profile');
-};
-
-export const diaryUpload = async (
-  req: IRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  handleFileUpload(req, res, next, 'diary');
-};
-
 export const postDiaryUpload = async (
   req: IRequest,
   res: Response,
   next: NextFunction,
 ) => {
-  handleFileUpload(req, res, next, 'postDiary');
+  s3FileUpload(req, res, next, 'postDiary');
 };
 
 export const s3upload = async (
@@ -244,12 +23,11 @@ export const s3upload = async (
   res: Response,
   next: NextFunction,
 ) => {
-  s3FileUpload(req, res, next, 'profile');
+  s3FileUpload(req, res, next, 'diary');
 };
 
 import aws from 'aws-sdk';
 import dotenv from 'dotenv';
-import { v4 as uuidv4 } from 'uuid';
 import { query } from '../utils/DB';
 import multerS3 from 'multer-s3';
 dotenv.config();
@@ -276,6 +54,21 @@ const uploadImagesMulter = multer({
   }),
 }).single('image');
 
+const uploadMultiMulter = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: 'lcgtestbucket1',
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    acl: 'public-read',
+    metadata: function (req, file, cb) {
+      cb(null, { fieldName: file.fieldname });
+    },
+    key: function (req, file, cb) {
+      cb(null, `contents/${Date.now()}_${file.originalname}`);
+    },
+  }),
+}).array('filesUpload', 5);
+
 export const profileImageUpload = (
   req: IRequest,
   res: Response,
@@ -296,7 +89,6 @@ export const profileImageUpload = (
         const isFile = await query(isFileQuery, [userId]);
 
         if (isFile[0].profile !== null) {
-
           const parts = isFile[0].profile.split('/');
 
           const fileKey = 'contents/' + parts[parts.length - 1];
@@ -319,16 +111,14 @@ export const profileImageUpload = (
     }
   });
 };
-const upload = multer({
-  storage: multer.memoryStorage(),
-}).array('filesUpload', 5);
+
 const s3FileUpload = (
   req: IRequest,
   res: Response,
   next: NextFunction,
-  type: 'profile' | 'diary' | 'postDiary',
+  type: 'diary' | 'postDiary',
 ) => {
-  upload(req, res, async (err: any) => {
+  uploadMultiMulter(req, res, async (err: any) => {
     try {
       if (err instanceof multer.MulterError) {
         generateError(400, 'upload error');
@@ -339,7 +129,9 @@ const s3FileUpload = (
       const files: FileObjects[] = req.files
         ? ([] as FileObjects[]).concat(...Object.values(req.files))
         : [];
-      if (type === 'profile' || type === 'postDiary') {
+
+      // 서로 다른 타입의 확장자의 파일일 경우 에러 처리
+      if (type === 'diary' || type === 'postDiary') {
         if (files.length >= 2) {
           const firstFileType = files[0].mimetype;
           const areAllFilesSameType = files.every(
@@ -352,82 +144,57 @@ const s3FileUpload = (
         }
       }
 
-      const filePaths = files.map((file) => ({
-        filename: uuidv4() + '-' + file.originalname,
-        buffer: file.buffer,
-      }));
-
-      if (type === 'profile') {
-        if (files.length >= 2) {
-          return res.status(400).send('최대 1개의 파일만 허용됩니다.');
-        }
-
-        if (files) {
-          // TODO 수정예정
-          const userId = req.params.userId;
+      if (type === 'diary') {
+        if (files.length > 0) {
+          const { diaryId } = req.params;
           const countFileQuery = `SELECT COUNT(*) as totalCount
-          FROM fileUpload
-          WHERE userId = ?;`;
-          const fileUploadInfo = await query(countFileQuery, [userId]);
+          FROM diaryFileUpload
+          WHERE diaryId = ?;`;
+          const fileUploadInfo = await query(countFileQuery, [diaryId]);
 
-          const fileQuery = `SELECT fileKey
-          FROM fileUpload
-          WHERE userId = ?;`;
-          const fileUploadInfo2 = await query(fileQuery, [userId]);
+          const fileQuery = `SELECT url
+          FROM diaryFileUpload
+          WHERE diaryId = ?;`;
+          const fileUploadInfo2 = await query(fileQuery, [diaryId]);
+
+          const fixFiles = fileUploadInfo2.map((row: any) => {
+            const parts = row.url.split('/');
+            return 'contents/' + parts[parts.length - 1];
+          });
 
           if (fileUploadInfo[0].totalCount > 0) {
-            const deleteQuery = `DELETE FROM fileUpload WHERE userId = ?;`;
+            const deleteQuery = `DELETE FROM diaryFileUpload WHERE diaryId = ?;`;
 
-            await query(deleteQuery, [userId]);
-            const fileKeys = fileUploadInfo2.map((row: any) => row.fileKey);
-            fileKeys.forEach(async (fileKey: any) => {
+            await query(deleteQuery, [diaryId]);
+
+            fixFiles.forEach(async (fileKey: any) => {
               await deleteObjectFromS3(fileKey);
             });
           }
 
-          const profileImage = filePaths.map((fileKey, buffer) => ({
-            fileKey: fileKey,
-            userId: userId,
-            buffer: buffer,
-          }));
-
           const insertQuery = `
-  INSERT INTO fileUpload (fileKey, userId)
+  INSERT INTO diaryFileUpload (url, diaryId)
   VALUES ?;
 `;
-          const insertValues = profileImage.map((image) => [
-            image.fileKey.filename,
-            image.userId,
-          ]);
+          const insertValues = files.map((file) => [file.location, diaryId]);
 
           await query(insertQuery, [insertValues]);
+        }
+      } else if (type === 'postDiary') {
+        if (files.length > 0) {
+          res.locals.myData = [];
 
-          for (const image of profileImage) {
-            await putObjectFromS3(image.fileKey.filename, image.fileKey.buffer);
+          for (const file of files) {
+            res.locals.myData.push(file.location);
           }
         }
       }
       next();
-    } catch (next) {
-      next(err);
+    } catch (error) {
+      console.log(error);
+      next(error);
     }
   });
-};
-
-const putObjectFromS3 = async (fileKey: string, file: any) => {
-  const buffer = Buffer.from(file.buffer);
-  const params = {
-    Bucket: 'lcgtestbucket1',
-    Key: fileKey,
-    Body: buffer,
-  };
-
-  try {
-    const s3UploadResult = await s3.upload(params).promise();
-    console.log(`${s3UploadResult} 111111111111111`);
-  } catch (error) {
-    console.log(error);
-  }
 };
 
 const deleteObjectFromS3 = async (fileKey: string) => {

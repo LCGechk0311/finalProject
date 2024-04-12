@@ -112,7 +112,7 @@ export async function getCommentByDiaryId(
     c.updatedAt,
     a.id as authorId, 
     a.username as username, 
-    fu.url as authorProfileImage,
+    a.profile as authorProfileImage,
     rc.id as reCommentId, 
     rc.diaryId as reCommentDiaryId, 
     rc.content as reCommentContent,
@@ -121,13 +121,11 @@ export async function getCommentByDiaryId(
     rc.updatedAt as reCommentUpdatedAt,
     ra.id as reCommentAuthorId, 
     ra.username as username, 
-    fu2.url as reCommentAuthorProfileImage
+    ra.profile as reCommentAuthorProfileImage
 FROM comment c
 LEFT JOIN user a ON c.authorId = a.id
-LEFT JOIN fileupload fu ON a.id = fu.userId
 LEFT JOIN comment rc ON c.id = rc.nestedComment
 LEFT JOIN user ra ON rc.authorId = ra.id
-LEFT JOIN fileupload fu2 ON ra.id = fu2.userId
 WHERE c.diaryId = ?
 ORDER BY c.createdAt ASC
 LIMIT ?, ?;

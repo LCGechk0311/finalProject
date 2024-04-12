@@ -90,11 +90,10 @@ export const listRequestsSent = async (
   SELECT JSON_OBJECT(
     'id', u.id,
     'username', u.username,
-    'profileImage', COALESCE(fu.url, '[]')
+    'profileImage', u.profile
   ) AS receivedUser
   FROM friend f
   JOIN user u ON f.receivedUserId = u.id
-  LEFT JOIN fileupload fu ON u.id = fu.userId
   WHERE f.sentUserId = ? AND f.status = false
   ORDER BY f.id ASC
   LIMIT ?, ?;
@@ -161,11 +160,10 @@ export const listRequestsReceived = async (
   const listRequestsReceivedSql = `
       SELECT JSON_OBJECT('id', sentUser.id,
         'username', sentUser.username,
-        'profileImage', COALESCE(fu.url, '[]')
+        'profileImage', sentUser.profile
       ) as sentUser
       FROM friend f
       INNER JOIN user AS sentUser ON f.sentUserId = sentUser.id
-      LEFT JOIN fileupload fu ON sentUser.id = fu.userId
       WHERE f.receivedUserId = ? AND f.status = false
       ORDER BY f.id ASC
       LIMIT ?, ?;

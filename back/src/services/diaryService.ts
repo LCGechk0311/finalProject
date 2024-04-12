@@ -7,6 +7,7 @@ import { generateEmotionString } from '../utils/emotionFlask';
 import { generateError } from '../utils/errorGenerator';
 import { findMode } from '../utils/modeEmotion';
 import { query } from '../utils/DB';
+import { format } from 'path';
 
 // 체크하는 용도 -----------------------------------------------
 /**
@@ -16,14 +17,12 @@ import { query } from '../utils/DB';
  */
 export const getDiaryByDateService = async (
   userId: string,
-  createdDate: Date,
+  createdDate: Date,  
 ) => {
   const formattedDate = new Date(createdDate).toISOString().slice(0, 10);
 
   const sqlQuery = `
-    SELECT * FROM diary
-    WHERE authorId = ? AND DATE(createdDate) = ?
-    LIMIT 1;
+  SELECT * FROM diary WHERE authorId = ? AND DATE(createdDate) = ? LIMIT 1;
   `;
 
   const diary = await query(sqlQuery, [userId, formattedDate]);
@@ -68,13 +67,6 @@ export const createDiaryService = async (
   inputData.emoji = '❎';
   inputData.authorId = authorId;
 
-  if (fileUrls && fileUrls.length > 0) {
-    inputData.filesUpload = {
-      create: fileUrls.map((url) => ({
-        url,
-      })),
-    };
-  }
   // 쿼리 실행
   const sqlQuery = `
     INSERT INTO diary (id, ${Object.keys(inputData).join(', ')})
@@ -83,14 +75,24 @@ export const createDiaryService = async (
       .join(', ')});
   `;
   await query(sqlQuery);
-  const selectQuery = `
-    SELECT * FROM diary WHERE authorId = ?;
-  `;
 
-  const selectResult = await query(selectQuery, [authorId]);
+  const formattedDate = new Date(inputData.createdDate)
+    .toISOString()
+    .slice(0, 10);
+  const selectQuery = `
+    SELECT * FROM diary WHERE authorId = ? AND DATE(createdDate) = ?;
+  `;
+  const selectResult = await query(selectQuery, [authorId, formattedDate]);
 
   const diary = selectResult[0];
-  console.log(diary);
+  if (fileUrls && fileUrls.length > 0) {
+    const insertQuery = `
+    INSERT INTO diaryFileUpload (url, diaryId)
+    VALUES ?;
+  `;
+    const insertValues = fileUrls.map((file) => [file, diary.id]);
+    await query(insertQuery, [insertValues]);
+  }
 
   const diaryResponseData = plainToClass(DiaryResponseDTO, diary, {
     excludeExtraneousValues: true,
@@ -203,10 +205,9 @@ export const getDiaryByMonthService = async (
  */
 export const getOneDiaryService = async (userId: string, diaryId: string) => {
   const diaryQuery = `
-      SELECT d.*, u.id as authorId, u.username, u.email, fu.url as profileImage, f.url
+      SELECT d.*, u.id as authorId, u.username, u.email, u.profile as profileImage, f.url
       FROM diary d
       JOIN user u ON d.authorId = u.id
-      LEFT JOIN fileupload fu ON u.id = fu.userId
       LEFT JOIN diaryfileUpload f ON d.id = f.diaryId
       WHERE d.id = ?;
     `;
@@ -266,10 +267,9 @@ export const getFriendsDiaryService = async (
   }
 
   const diaryQuery = `
-      SELECT d.*, u.id as authorId, u.username, u.email, fu.url AS profileImage
+      SELECT d.*, u.id as authorId, u.username, u.email, u.profile AS profileImage
       FROM diary d
       JOIN user u ON d.authorId = u.id
-      LEFT JOIN fileupload fu ON u.id = fu.userId
       WHERE ${whereConditions}
       ORDER BY d.createdDate DESC
       LIMIT ${limit}
@@ -324,10 +324,9 @@ export const getAllDiaryService = async (
     queryParams.push(emotion);
   }
 
-  const diaryQuery = `SELECT d.*, u.id AS authorId, u.username, u.email, u.description, fu.url AS profileImage
+  const diaryQuery = `SELECT d.*, u.id AS authorId, u.username, u.email, u.description, u.profile AS profileImage
     FROM diary d
     JOIN user u ON d.authorId = u.id
-    LEFT JOIN fileupload fu ON u.id = fu.userId
     WHERE ${whereConditions}
     ORDER BY d.createdDate DESC
     LIMIT ${limit}
@@ -366,41 +365,38 @@ export const updateDiaryService = async (
   diaryId: string,
   inputData: any,
 ) => {
-  if (inputData.content) {
-    inputData.emotion = await generateEmotionString(
-      inputData.content as string,
-    );
-    inputData.emoji = '❎';
-  }
-  const updateQuery = `
-      UPDATE diary
-      SET ${Object.entries(inputData)
-        .map(([key, value]) => `${key} = '${value}'`)
-        .join(', ')}
-      WHERE id = ? AND authorId = ?;
-    `;
+  if (Object.keys(inputData).length > 0) {
+    if (inputData.content) {
+      inputData.emotion = await generateEmotionString(
+        inputData.content as string,
+      );
+      inputData.emoji = '❎';
+    }
+    const updateQuery = `
+        UPDATE diary
+        SET ${Object.entries(inputData)
+          .map(([key, value]) => `${key} = '${value}'`)
+          .join(', ')}
+        WHERE id = ? AND authorId = ?;
+      `;
 
-  const result = await query(updateQuery, [diaryId, userId]);
+    const result = await query(updateQuery, [diaryId, userId]);
 
-  if (result.affectedRows === 0) {
-    const response = emptyApiResponseDTO();
-    return response;
+    if (result.affectedRows === 0) {
+      const response = emptyApiResponseDTO();
+      return response;
+    }
   }
 
   const selectQuery = `
-  SELECT d.*, u.id as authorId, u.username, u.email, fu.url as profileImage
+  SELECT d.*, u.id as authorId, u.username, u.email, u.profile
   FROM diary d
   JOIN user u ON d.authorId = u.id
-  LEFT JOIN fileupload fu ON u.id = fu.userId
   WHERE d.id = ?;
 `;
 
   const updatedDiary = await query(selectQuery, [diaryId]);
 
-  // if (updatedDiary == null) {
-  //   const response = emptyApiResponseDTO();
-  //   return response;
-  // }
   const diaryResponseData = plainToClass(DiaryResponseDTO, updatedDiary, {
     excludeExtraneousValues: true,
   });
@@ -452,7 +448,7 @@ export const selectedEmojis = async (
     return response;
   }
 
-  const selectQuery = `select d.*, u.id as AuthorInDiaryDTO, u.username, u.email, u.profileImage from diary d join user u on d.authorId = u.id where d.id=?`;
+  const selectQuery = `select d.*, u.id as AuthorInDiaryDTO, u.username, u.email, u.profile from diary d join user u on d.authorId = u.id where d.id=?`;
 
   const updatedDiary = await query(selectQuery, [diaryId]);
 
@@ -502,19 +498,15 @@ export const searchDiaryService = async (
 
   const whereClause = whereConditions.join(' AND ');
 
-  const searchQuery = `SELECT d.*, u.id AS authorId, u.username, u.email, fu.url AS profileImage
+  const searchQuery = `SELECT d.*, u.id AS authorId, u.username, u.email, u.profile AS profileImage
 FROM diary d
 JOIN user u ON d.authorId = u.id
-LEFT JOIN fileupload fu ON u.id = fu.userId
 WHERE ${whereClause}
 ORDER BY match(title, content) against('${fullTextQuery}' in boolean mode) DESC
 LIMIT ${limit}
 OFFSET ${(page - 1) * limit};`;
 
   const searchedDiary = await query(searchQuery, queryParams);
-
-  console.log(fullTextQuery);
-  console.log(searchedDiary);
 
   if (searchedDiary.length === 0) {
     const response = emptyApiResponseDTO();

@@ -60,13 +60,6 @@ export const getAllUsers = async (
   page: number,
   limit: number,
 ) => {
-  //   const userQuery = `
-  //   select u.*, fu.url as profileImage, coalesce((select status from Friend where sentUserId = u.id OR receivedUserId = u.id), false) as status
-  //   from user u
-  //   left join fileupload fu on u.id = fu.userId
-  //   LIMIT ${limit}
-  //   OFFSET ${(page - 1) * limit};
-  // `;
   const userQuery = `
 SELECT u.*,
        case when f.status is not null then f.status else false end as status
@@ -125,15 +118,6 @@ export const getMyFriends = async (
       ? friend.receivedUserId
       : friend.sentUserId;
   });
-
-  //   const friendQuery = `
-  //   SELECT user.id, user.username, user.email, user.description, user.latestEmoji, profileImage.*
-  //   FROM User AS user
-  //   LEFT OUTER JOIN fileUpload AS profileImage ON user.id = profileImage.userId
-  //   ${friendIdList.length > 0 ? `WHERE user.id IN (${friendIdList.map(() => '?').join(',')})` : ''}
-  //   LIMIT ?
-  //   OFFSET ?;
-  // `;
   const friendQuery = `
 SELECT user.id, user.username, user.email, user.description, user.latestEmoji, user.profile
 FROM User AS user
