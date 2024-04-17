@@ -1,14 +1,14 @@
 import { Response, NextFunction } from 'express';
-import { fileUploadMiddleware } from './fileMiddleware';
-
-import { CustomFile, FileObjects } from '../types/upload';
-import { emptyApiResponseDTO } from '../utils/emptyResult';
-import { prisma } from '../../prisma/prismaClient';
+import { FileObjects } from '../types/upload';
 import { generateError } from '../utils/errorGenerator';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { IRequest } from 'types/request';
+import { query } from '../utils/DB';
+import {
+  deleteObjectFromS3,
+  uploadImagesMulter,
+  uploadMultiMulter,
+} from './fileMiddleware';
 
 export const postDiaryUpload = async (
   req: IRequest,
@@ -25,49 +25,6 @@ export const s3upload = async (
 ) => {
   s3FileUpload(req, res, next, 'diary');
 };
-
-import aws from 'aws-sdk';
-import dotenv from 'dotenv';
-import { query } from '../utils/DB';
-import multerS3 from 'multer-s3';
-dotenv.config();
-aws.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY,
-  secretAccessKey: process.env.AWS_SECRET_KEY,
-  region: 'ap-northeast-2',
-});
-
-const s3 = new aws.S3();
-
-const uploadImagesMulter = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: 'lcgtestbucket1',
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    acl: 'public-read',
-    metadata: function (req, file, cb) {
-      cb(null, { fieldName: file.fieldname });
-    },
-    key: function (req, file, cb) {
-      cb(null, `contents/${Date.now()}_${file.originalname}`);
-    },
-  }),
-}).single('image');
-
-const uploadMultiMulter = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: 'lcgtestbucket1',
-    contentType: multerS3.AUTO_CONTENT_TYPE,
-    acl: 'public-read',
-    metadata: function (req, file, cb) {
-      cb(null, { fieldName: file.fieldname });
-    },
-    key: function (req, file, cb) {
-      cb(null, `contents/${Date.now()}_${file.originalname}`);
-    },
-  }),
-}).array('filesUpload', 5);
 
 export const profileImageUpload = (
   req: IRequest,
@@ -195,18 +152,4 @@ const s3FileUpload = (
       next(error);
     }
   });
-};
-
-const deleteObjectFromS3 = async (fileKey: string) => {
-  const params = {
-    Bucket: 'lcgtestbucket1',
-    Key: fileKey,
-  };
-
-  try {
-    await s3.deleteObject(params).promise();
-    console.log(`Object with key '${fileKey}' deleted from S3 successfully.`);
-  } catch (error) {
-    console.error(`Error deleting object from S3: ${error.message}`);
-  }
 };

@@ -64,13 +64,6 @@ function getDurationInSeconds(isoDuration: string): number {
 
 export async function updateAudioUrlsPeriodically() {
   try {
-    // const emojiTypes = await prisma.emoji.findMany({
-    //   distinct: ['type'],
-    //   select: {
-    //     type: true,
-    //   },
-    // });
-
     const emojiTypesQuery = `
       SELECT DISTINCT type FROM emoji;
     `;
@@ -86,14 +79,6 @@ export async function updateAudioUrlsPeriodically() {
         filter: 'audioonly',
       }).url;
 
-      // await prisma.emoji.updateMany({
-      //   where: {
-      //     type: emojiType.type,
-      //   },
-      //   data: {
-      //     audioUrl,
-      //   },
-      // });
       const updateQuery = `
         UPDATE emoji SET audioUrl = ? WHERE type = ?;
       `;

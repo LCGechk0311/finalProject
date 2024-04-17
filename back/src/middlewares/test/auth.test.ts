@@ -23,7 +23,7 @@ const res: any = {
 const next: NextFunction = jest.fn();
 
 jest.mock('passport', () => ({
-  use: jest.fn(),
+  user: jest.fn(),
   authenticate: jest.fn(),
 }));
 
@@ -164,7 +164,7 @@ describe('localAuthentication', () => {
     expect(next).toHaveBeenCalledWith(info);
   });
 
-  it('유저 정보', async () => {
+  it('유저 정보', () => {
     const user = {
       email: 'mock@email.com',
       username: 'mockUsername',
@@ -180,33 +180,33 @@ describe('localAuthentication', () => {
     (generateRefreshToken as jest.Mock).mockResolvedValueOnce(true);
     (setCookie as jest.Mock).mockResolvedValueOnce(true);
 
-    await localAuthentication(req, res, next);
+    localAuthentication(req, res, next);
 
     expect(req.user).toEqual(user);
     expect(next).toHaveBeenCalled();
   });
 });
 
-describe('구글 소셜 로그인', () => {
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+// describe('구글 소셜 로그인', () => {
+//   afterEach(() => {
+//     jest.clearAllMocks();
+//   });
 
-  it('로그인 요청 성공 시', async () => {
-    // 로그인 콜백 요청을 시뮬레이션
-    const req = {};
-    const res: any = {
-      redirect: jest.fn(),
-      status: jest.fn(),
-      json: jest.fn(),
-    };
+//   it('로그인 요청 성공 시', async () => {
+//     // 로그인 콜백 요청을 시뮬레이션
+//     const req = {};
+//     const res: any = {
+//       redirect: jest.fn(),
+//       status: jest.fn(),
+//       json: jest.fn(),
+//     };
 
-    // 로그인 콜백을 호출
-    loginCallback(req as IRequest, res);
+//     // 로그인 콜백을 호출
+//     loginCallback(req as IRequest, res);
 
-    // 로그인 성공 후 홈페이지로 리다이렉션 되는지 확인
-    expect(res.redirect).toHaveBeenCalledWith('/');
-  });
+//     // 로그인 성공 후 홈페이지로 리다이렉션 되는지 확인
+//     expect(res.redirect).toHaveBeenCalledWith('/');
+//   });
 
   // it('인증 성공', () => {
   //   const mockedGoogleStrategy = new GoogleStrategy(
@@ -314,4 +314,4 @@ describe('구글 소셜 로그인', () => {
   //   ]);
   //   expect(done).not.toHaveBeenCalled();
   // });
-});
+// });

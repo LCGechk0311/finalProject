@@ -1,5 +1,3 @@
-import { prisma } from '../../prisma/prismaClient';
-import { PrismaClient } from '@prisma/client';
 import { query } from './DB';
 /**
  *

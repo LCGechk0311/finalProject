@@ -22,7 +22,6 @@ import { CronJob } from 'cron';
 import { updateAudioUrlsPeriodically } from './utils/music';
 import cookieParser from 'cookie-parser';
 import { sessionMiddleware } from './utils/DB';
-import * as AWS from 'aws-sdk';
 
 declare module 'express-session' {
   export interface SessionData {
@@ -31,29 +30,6 @@ declare module 'express-session' {
     userId?: string;
   }
 }
-
-// aws
-// AWS.config.update({
-//   accessKeyId: 'ACCESS_KEY',
-//   secretAccessKey: 'SECRET_KEY',
-//   region: 'ap-northeast-2'
-// });
-
-// const s3 = new AWS.S3();
-
-// const params = {
-//   Bucket: 'lcgtestbucket1',
-//   Key: 'object-key.txt',
-//   Body: 'Hello, world!'
-// };
-
-// s3.upload(params, function(err: Error, data: AWS.S3.ManagedUpload.SendData) {
-//   if (err) {
-//     console.error("Error:", err);
-//   } else {
-//     console.log("Object uploaded successfully. Location:", data.Location);
-//   }
-// });
 
 const app: Express & { io?: any } = express();
 const server = http.createServer(app);
