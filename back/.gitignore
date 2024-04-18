@@ -6,4 +6,4 @@ dist
 logs
 fileUpload
 .env
-src/middlewares/test/*.ts
+test

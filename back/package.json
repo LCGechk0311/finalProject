@@ -38,6 +38,7 @@
   },
   "jest": {
     "preset": "ts-jest",
+    "testMatch": ["(/__tests__/.*|(\\.|/)(test|spec))\\.[jt]sx?$"],
     "testEnvironment": "node",
     "clearMocks": true,
     "resetMocks": true,
