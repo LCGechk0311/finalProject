@@ -39,6 +39,10 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
+    "clearMocks": true,
+    "resetMocks": true,
+    "restoreMocks": true,
+    "resetModules": true,
     "coverageThreshold": {
       "global": {
         "branches": 90,

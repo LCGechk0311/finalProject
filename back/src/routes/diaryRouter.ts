@@ -12,7 +12,7 @@ import {
   getEmotionOftheMonth,
 } from '../controllers/diaryController';
 import { Router } from 'express';
-import { postDiaryUpload, s3upload } from '../middlewares/uploadMiddleware';
+// import { postDiaryUpload, s3upload } from '../middlewares/uploadMiddleware';
 import { wrapAsyncController } from '../utils/wrapper';
 import { createdGPTCommentMiddleware } from '../middlewares/chatGPTMiddleware';
 import { updatedGPTComment } from '../middlewares/updatedGPTMiddleware';
@@ -51,7 +51,7 @@ const diaryRouter = Router();
 diaryRouter.post(
   '/',
   jwtAuthentication,
-  postDiaryUpload,
+  // postDiaryUpload,
   wrapAsyncController(createDiary),
   // wrapAsyncController(createdGPTCommentMiddleware),
 );
@@ -107,7 +107,7 @@ diaryRouter
   .put(
     jwtAuthentication,
     // diaryUpload,
-    s3upload,
+    // s3upload,
     wrapAsyncController(updateDiary),
     wrapAsyncController(updatedGPTComment),
   )

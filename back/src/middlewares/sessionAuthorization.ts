@@ -1,6 +1,6 @@
 import { IRequest } from 'types/request';
 import { Response, NextFunction } from 'express';
-import redisClient from '../utils/DB';
+import {redisClient} from '../utils/DB';
 
 export const requireAuthentication = async (
   req: IRequest,
