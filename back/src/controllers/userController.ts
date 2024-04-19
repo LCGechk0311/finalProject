@@ -42,6 +42,7 @@ export const userRegister = async (req: Request, res: Response) => {
 
   // createUser 함수를 사용하여 새 사용자 생성
   const user = await createUser(req.body);
+  console.log(user);
 
   return res.status(200).json(user);
 };
