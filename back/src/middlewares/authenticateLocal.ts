@@ -32,6 +32,7 @@ export const localAuthentication = (
           req.user = user;
           // accessToken 쿠키 설정
           setCookie(res, 'accessToken', token, expiresAt);
+          console.log(req.user);
 
           // newRefreshToken 쿠키 설정
           setCookie(

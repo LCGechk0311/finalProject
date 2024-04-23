@@ -34,8 +34,10 @@ export const profileImageUpload = (
   uploadImagesMulter(req, res, async (err: any) => {
     try {
       if (err instanceof multer.MulterError) {
+        console.log(err);
         generateError(400, 'upload error');
       } else if (err) {
+        console.log(err);
         generateError(500, 'Internal server error');
       }
       if (req.file) {
@@ -64,6 +66,7 @@ export const profileImageUpload = (
       }
       next();
     } catch (err) {
+      console.log(err);
       next(err);
     }
   });

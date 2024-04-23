@@ -85,7 +85,7 @@ export const getAllUser = async (req: IRequest, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 10;
   const userId = req.user.id;
 
-  const allUsers = await getAllUsers(userId, page, limit);
+  const allUsers = await getAllUsers(page, limit);
 
   return res.status(allUsers.status).json(allUsers);
 };
