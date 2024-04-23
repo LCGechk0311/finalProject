@@ -27,7 +27,6 @@ export const createUser = async (inputData: IUser) => {
   `;
 
   const selectResult = await query(selectQuery, [email]);
-
   const insertedUser = selectResult[0];
 
   const UserResponseDTO = plainToClass(userResponseDTO, insertedUser, {
@@ -56,7 +55,6 @@ export const myInfo = async (userId: string) => {
 };
 
 export const getAllUsers = async (
-  userId: string,
   page: number,
   limit: number,
 ) => {
@@ -155,8 +153,9 @@ OFFSET ?;
     .map(() => '?')
     .join(',')});`;
 
-  const tatalItemResult = await query(countQuery, [...friendIdList]);
-  const totalItem = tatalItemResult[0].length;
+  const totalItemResult = await query(countQuery, [...friendIdList]);
+
+  const totalItem = totalItemResult[0].totalItem;
   const totalPage = Math.ceil(totalItem / limit);
 
   const pageInfo = { totalItem, totalPage, currentPage: page, limit };
@@ -411,7 +410,10 @@ export const registerUser = async (
 
   const updatedUserQuery = 'SELECT * FROM user WHERE id = ?';
 
-  const [updatedUser] = await query(updatedUserQuery, [userId]);
+  const updatedUser = await query(updatedUserQuery, [userId]);
+  console.log(updatedUser);
+  console.log(1);
+  console.log(updatedUser[0]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, updatedUser[0], {
     excludeExtraneousValues: true,

@@ -14,7 +14,7 @@ model User {
   email        String       @unique
   password     String?
   description  String?
-  profileImage fileUpload[]
+  profile      String?
   updatedAt    DateTime     @default(now()) // 기본값 추가
   createdAt    DateTime     @default(now())
   friendS      Friend[]     @relation("UserFriendS")
@@ -36,15 +36,6 @@ model User {
   verificationTokenExpires DateTime?
   isVerified               Boolean?
   ChatRoom                 ChatRoom[]
-  ChatRoom                 ChatRoom[]
-}
-
-model fileUpload {
-  id        Int      @id @default(autoincrement())
-  url       String
-  user      User?    @relation(fields: [userId], references: [id])
-  userId    String?
-  createdAt DateTime @default(now())
 }
 
 model diaryFileUpload {
@@ -140,6 +131,8 @@ model ChatRoom {
   id        String        @id @default(uuid())
   message   ChatMessage[]
   createdAt DateTime      @default(now())
+  user User @relation(fields: [userId], references: [id])
+  userId String
 }
 
 model ChatMessage {
