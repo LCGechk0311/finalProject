@@ -23,7 +23,7 @@ export const userLogin = async (req: IRequest, res: Response) => {
       id: req.user.id,
       name: req.user.username,
       email: req.user.email,
-      profileImage: req.user.profileImage,
+      profileImage: req.user.profile,
     };
   
     return res.status(200).json({ data: user, message: '성공' });
@@ -47,7 +47,7 @@ export const userLogin = async (req: IRequest, res: Response) => {
       id: req.user.id,
       name: req.user.username,
       email: req.user.email,
-      profileImage: req.user.profileImage,
+      profileImage: req.user.profile,
     };
   
     req.session.save(() => {

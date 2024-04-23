@@ -3,12 +3,10 @@ export interface IUser {
   username: string;
   email: string;
   password: string;
-  description: string | null;
-  profileImage: fileUpload[];
-  profile: string;
-  updatedAt: Date;
-  createdAt: Date;
-  isFriend: Boolean;
+  description?: string | null;
+  profile?: string;
+  updatedAt?: Date;
+  createdAt?: Date;
 }
 
 export interface fileUpload {
