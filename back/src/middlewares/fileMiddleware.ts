@@ -1,6 +1,5 @@
 import multer from 'multer';
 import multerS3 from 'multer-s3';
-import { S3Client, S3 } from '@aws-sdk/client-s3';
 import aws from 'aws-sdk';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -10,17 +9,7 @@ aws.config.update({
   region: 'ap-northeast-2',
 });
 
-// const s3Config = new S3Client({
-//   region: 'ap-northeast-2',
-//   credentials: {
-//     accessKeyId: process.env.AWS_ACCESS_KEY,
-//     secretAccessKey: process.env.AWS_SECRET_KEY,
-//   },
-// });
-
-// const s3 = new aws.S3();
-const s3 = new S3();
-// const s3: S3Client = new S3Client();
+const s3 = new aws.S3();
 
 // 단일 업로드
 export const uploadImagesMulter = multer({
@@ -60,9 +49,8 @@ export const deleteObjectFromS3 = async (fileKey: string) => {
     Bucket: 'lcgtestbucket1',
     Key: fileKey,
   };
-
   try {
-    await s3.deleteObject(params);
+    await s3.deleteObject(params).promise();
     console.log(`Object with key '${fileKey}' deleted from S3 successfully.`);
   } catch (error) {
     console.error(`Error deleting object from S3: ${error.message}`);

@@ -13,28 +13,28 @@ import {
   verifyToken,
   registerUser,
   deleteUserService,
-} from '../../services/userService';
+} from '../src/services/userService';
 
-import { query } from '../../utils/DB';
+import { query } from '../src/utils/DB';
 import bcrypt from 'bcrypt';
-import { getMyWholeFriends } from '../../services/friendService';
-import { generateRandomPassowrd } from '../../utils/password';
-import { emailToken, sendEmail } from '../../utils/email';
+import { getMyWholeFriends } from '../src/services/friendService';
+import { generateRandomPassowrd } from '../src/utils/password';
+import { emailToken, sendEmail } from '../src/utils/email';
 
-jest.mock('../../utils/DB', () => ({
+jest.mock('../src/utils/DB', () => ({
   query: jest.fn(),
 }));
 
-jest.mock('../../services/friendService', () => ({
+jest.mock('../src/services/friendService', () => ({
   getMyWholeFriends: jest.fn(),
 }));
 
-jest.mock('../../utils/email', () => ({
+jest.mock('../src/utils/email', () => ({
   sendEmail: jest.fn(),
   emailToken: jest.fn(),
 }));
 
-jest.mock('../../utils/password', () => ({
+jest.mock('../src/utils/password', () => ({
   generateRandomPassowrd: jest.fn(),
 }));
 
