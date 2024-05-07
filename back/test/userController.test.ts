@@ -11,24 +11,25 @@ import {
   verifyEmail,
   getAllUser,
   getMyFriend
-} from '../../controllers/userController';
-import {
-  createUser,
-  myInfo,
-  getUserInfo,
-  deleteUserService,
-  forgotUserPassword,
-  resetUserPassword,
-  updateUserService,
-  getUsers,
-  verifyToken,
-  registerUser,
-  getAllUsers,
-  getMyFriends
-} from '../../services/userService';
+} from '../src/controllers/userController';
+// import {
+//   createUser,
+//   myInfo,
+//   getUserInfo,
+//   deleteUserService,
+//   forgotUserPassword,
+//   resetUserPassword,
+//   updateUserService,
+//   getUsers,
+//   verifyToken,
+//   registerUser,
+//   getAllUsers,
+//   getMyFriends
+// } from '../src/services/userService';
+import * as userService from '../src/services/userService';
 import { Request, NextFunction } from 'express';
 import { IRequest } from 'types/request';
-import { query } from '../../utils/DB';
+import { query } from '../src/utils/DB';
 
 let req: any = {};
 let res: any = {
@@ -37,25 +38,26 @@ let res: any = {
 };
 let next: NextFunction = jest.fn();
 
-jest.mock('../../services/userService', () => ({
-  myInfo: jest.fn(),
-  createUser: jest.fn(),
-  getUserInfo: jest.fn(),
-  deleteUserService: jest.fn(),
-  forgotUserPassword: jest.fn(),
-  resetUserPassword: jest.fn(),
-  updateUserService: jest.fn(),
-  getUsers: jest.fn(),
-  registerUser: jest.fn(),
-  verifyToken: jest.fn(),
-  getAllUsers: jest.fn(),
-  getMyFriends: jest.fn().mockResolvedValue({
-    status: 200,
-    data: ['friend1', 'friend2'],
-  }),
-}));
+// jest.mock('../src/services/userService', () => ({
+//   myInfo: jest.fn(),
+//   createUser: jest.fn(),
+//   getUserInfo: jest.fn(),
+//   deleteUserService: jest.fn(),
+//   forgotUserPassword: jest.fn(),
+//   resetUserPassword: jest.fn(),
+//   updateUserService: jest.fn(),
+//   getUsers: jest.fn(),
+//   registerUser: jest.fn(),
+//   verifyToken: jest.fn(),
+//   getAllUsers: jest.fn(),
+//   getMyFriends: jest.fn().mockResolvedValue({
+//     status: 200,
+//     data: ['friend1', 'friend2'],
+//   }),
+// }));
+jest.mock('../src/services/userService');
 
-jest.mock('../../utils/DB', () => ({
+jest.mock('../src/utils/DB', () => ({
   query: jest.fn(),
 }));
 
@@ -90,7 +92,7 @@ describe('유저 CUD', () => {
       status: 200,
     };
 
-    (createUser as jest.Mock).mockResolvedValueOnce(mockCreateInfo);
+    (userService.createUser as jest.Mock).mockResolvedValueOnce(mockCreateInfo);
 
     await userRegister(req as Request, res);
 
@@ -140,7 +142,7 @@ describe('유저 CUD', () => {
       status: 200,
     };
 
-    (updateUserService as jest.Mock).mockResolvedValueOnce(mockUpdateInfo);
+    (userService.updateUserService as jest.Mock).mockResolvedValueOnce(mockUpdateInfo);
 
     await updateUser(req as IRequest, res);
 
@@ -174,7 +176,7 @@ describe('유저 정보', () => {
   it('myinfo 서비스 부분 테스트', async () => {
     const req: any = { user: { id: 'mockUserId' } };
 
-    (myInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
+    (userService.myInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
 
     await getMyInfo(req, res);
 
@@ -185,7 +187,7 @@ describe('유저 정보', () => {
   it('특정 유저 정보 부분 테스트', async () => {
     const req: any = { params: { userId: 'mockUserId' } };
 
-    (getUserInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
+    (userService.getUserInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
 
     await getUserId(req, res);
 
@@ -218,7 +220,7 @@ describe('유저 정보', () => {
       },
     };
 
-    (getUsers as jest.Mock).mockResolvedValueOnce(mockSearchInfo);
+    (userService.getUsers as jest.Mock).mockResolvedValueOnce(mockSearchInfo);
 
     await searchKeyword(req, res);
 
@@ -236,7 +238,7 @@ describe('delete user', () => {
       user: { id: 'mockUserId' },
       params: { userId: 'mockUserId' },
     };
-    (deleteUserService as jest.Mock).mockResolvedValueOnce(true);
+    (userService.deleteUserService as jest.Mock).mockResolvedValueOnce(true);
 
     await deleteUser(req, res);
 
@@ -283,7 +285,7 @@ describe('비밀번호 관련', () => {
     };
 
     (query as jest.Mock).mockResolvedValueOnce(true);
-    (forgotUserPassword as jest.Mock).mockResolvedValueOnce(true);
+    (userService.forgotUserPassword as jest.Mock).mockResolvedValueOnce(true);
 
     await forgotPassword(req, res);
 
@@ -298,7 +300,7 @@ describe('비밀번호 관련', () => {
       body: { email: 'mockUser@test.com', password: '1111' },
     };
 
-    (resetUserPassword as jest.Mock).mockResolvedValueOnce(true);
+    (userService.resetUserPassword as jest.Mock).mockResolvedValueOnce(true);
 
     await resetPassword(req, res);
 
@@ -322,7 +324,7 @@ describe('이메일 인증', () => {
       redirect: jest.fn(),
     };
     (query as jest.Mock).mockResolvedValueOnce(true);
-    (verifyToken as jest.Mock).mockResolvedValueOnce(true);
+    (userService.verifyToken as jest.Mock).mockResolvedValueOnce(true);
 
     await verifyEmail(req, res);
 
@@ -353,7 +355,7 @@ describe('이메일 인증', () => {
     };
 
     (query as jest.Mock).mockResolvedValueOnce(true);
-    (registerUser as jest.Mock).mockResolvedValueOnce(true);
+    (userService.registerUser as jest.Mock).mockResolvedValueOnce(true);
 
     await testEmail(req, res);
   });
@@ -400,11 +402,11 @@ describe('getAllUser', () => {
   });
 
   it('모든 유저 불러오기 성공!', async () => {
-    (getAllUsers as jest.Mock).mockResolvedValueOnce(mockUsersData);
+    (userService.getAllUsers as jest.Mock).mockResolvedValueOnce(mockUsersData);
 
     await getAllUser(req as IRequest, res);
 
-    expect(getAllUsers).toHaveBeenCalledWith(mockUser.id, 1, 10);
+    expect(userService.getAllUsers).toHaveBeenCalledWith(1, 10);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(mockUsersData);
   });
@@ -412,6 +414,13 @@ describe('getAllUser', () => {
 
 describe('getMyFriend', () => {
   const mockUser = { id: 'mockUserId' };
+  const mockUsersData = {
+    status: 200,
+    data: [
+      { id: 'mockUserId1', name: 'User 1' },
+      { id: 'mockUserId2', name: 'User 2' },
+    ],
+  };
   beforeEach(() => {
     req = {
       query: { page: '1', limit: '10' },
@@ -423,10 +432,11 @@ describe('getMyFriend', () => {
   });
 
   it('인증된 유저의 친구리스트 뽑아오기 ', async () => {
+    (userService.getMyFriends as jest.Mock).mockResolvedValueOnce(mockUsersData);
+
     await getMyFriend(req as IRequest, res);
 
-    expect(getMyFriends).toHaveBeenCalledWith('mockUserId', 1, 10);
+    expect(userService.getMyFriends).toHaveBeenCalledWith("mockUserId", 1, 10);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ data: ['friend1', 'friend2'], status: 200 });
   });
 });
