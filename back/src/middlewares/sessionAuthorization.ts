@@ -1,6 +1,6 @@
 import { IRequest } from 'types/request';
 import { Response, NextFunction } from 'express';
-import redisClient from '../utils/DB';
+import { redisCli } from '../utils/DB';
 
 export const requireAuthentication = async (
   req: IRequest,
@@ -8,7 +8,8 @@ export const requireAuthentication = async (
   next: NextFunction,
 ) => {
   try {
-    const sessionDataString = await redisClient.get(`session:${req.sessionID}`);
+    console.log(req.sessionID);
+    const sessionDataString = await redisCli.get(`${req.sessionID}`);
 
     if (sessionDataString) {
       const sessionData = JSON.parse(sessionDataString);
@@ -27,4 +28,3 @@ export const requireAuthentication = async (
     res.status(500).json({ message: 'Internal Server Error' });
   }
 };
-

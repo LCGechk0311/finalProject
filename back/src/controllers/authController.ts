@@ -33,6 +33,7 @@ export const userLogin = async (req: IRequest, res: Response) => {
     // #swagger.tags = ['Auth']
     // #swagger.summary = '세션로그인'
     const { email, password } = req.body;
+    console.log(4);
   
     const userInput = plainToClass(userValidateDTO, req.body);
   

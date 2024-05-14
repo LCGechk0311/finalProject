@@ -42,7 +42,6 @@ export const userRegister = async (req: Request, res: Response) => {
 
   // createUser 함수를 사용하여 새 사용자 생성
   const user = await createUser(req.body);
-  console.log(user);
 
   return res.status(200).json(user);
 };
@@ -84,7 +83,6 @@ export const getAllUser = async (req: IRequest, res: Response) => {
 
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 10;
-  const userId = req.user.id;
 
   const allUsers = await getAllUsers(page, limit);
 
@@ -121,7 +119,6 @@ export const userLogout = async (req: IRequest, res: Response) => {
 
   req.session.destroy((err) => {
     if (err) {
-      console.error(err);
       return res.status(500).json({ message: 'Internal Server Error' });
     }
     res.clearCookie('sessionID');
@@ -162,7 +159,6 @@ export const updateUser = async (req: IRequest, res: Response) => {
   const errors = await validate(userInput);
 
   if (errors.length > 0) {
-    // throw generateError(500, '양식에 맞춰서 입력해주세요');
     return res.status(500).json({ message: '양식에 맞춰서 입력해주세요' });
   }
   // updateUserService 함수를 사용하여 사용자 정보 업데이트
@@ -232,26 +228,17 @@ export const refresh = async (req: IRequest, res: Response) => {
   // #swagger.tags = ['Users']
   // #swagger.summary = '리프레시 토큰'
 
-  // const refreshToken = req.body.token;
-
-  const cookiesArray = req.headers.cookie.split('; ');
-
-  let refreshToken;
-  cookiesArray.forEach((cookie) => {
-    const [name, value] = cookie.split('=');
-    if (name === 'newRefreshToken') {
-      refreshToken = value;
-    }
-  });
+  const refreshToken = req.body.refreshToken;
+  const userId = req.body.userId;
 
   if (!refreshToken) {
     const response = emptyApiResponseDTO();
-    return response;
+    return res.status(response.status).json({ message: response.message });
   }
   // Refresh Token을 사용하여 사용자 ID 확인
-  const userId = await verifyRefreshToken(refreshToken);
-  if (!userId) {
-    throw generateError(403, 'refreshToken이 유효하지않음');
+  const result = await verifyRefreshToken(refreshToken,userId);
+  if (result === null) {
+    return res.status(403).json({ message: 'refreshToken이 유효하지않음' });
   }
 
   // accessToken 재발급
@@ -270,7 +257,7 @@ export const refresh = async (req: IRequest, res: Response) => {
     newRefreshToken.expireIn,
   );
 
-  res.json({ message: '성공' });
+  return res.json({ message: '성공' });
 };
 
 export const loginCallback = (req: IRequest, res: Response) => {
@@ -312,7 +299,7 @@ export const emailLink = async (req: IRequest, res: Response) => {
 
   await emailLinked(email);
 
-  res.json({ message: '이메일을 확인해주세요' });
+  return res.json({ message: '이메일을 확인해주세요' });
 };
 
 // 이메일인증 확인
@@ -343,7 +330,7 @@ export const emailVerified = (req: IRequest, res: Response) => {
   // #swagger.tags = ['Users']
   // #swagger.summary = '이메일 인증 확인'
 
-  res.send('이메일이 성공적으로 인증되었습니다.');
+  return res.send('이메일이 성공적으로 인증되었습니다.');
 };
 
 // 이메일 인증 후 회원가입

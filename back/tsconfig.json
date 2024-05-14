@@ -12,11 +12,10 @@
     "skipLibCheck": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "typeRoots": ["./node_modules/@types", "./src/types"],
     "paths": {
       "*": ["node_modules/*", "src/*", "src/customType"]
     },
     "resolveJsonModule": true
   },
-  "include": ["src/**/*", "test", "node_modules/*"]
+  "include": ["src/**/*", "generateSwagger.ts","index.ts","test/*"],
 }

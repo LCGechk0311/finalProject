@@ -7,13 +7,17 @@ import {
   generateAccessToken,
   generateRefreshToken,
 } from '../src/utils/tokenUtils';
-import { localAuthentication } from '../src/middlewares/authenticateLocal';
+import {
+  localAuthentication,
+  sessionLocalAuthentication,
+} from '../src/middlewares/authenticateLocal';
 import { IUser } from 'types/user';
 import { setCookie } from '../src/utils/responseData';
 import googleStrategy from '../src/config/passport/googleStrategy';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { loginCallback } from '../src/controllers/userController';
-import { query } from '../src/utils/DB';
+import { query, redisCli } from '../src/utils/DB';
+import jwt from 'jsonwebtoken';
 
 const req: any = {};
 const res: any = {
@@ -33,6 +37,9 @@ jest.mock('dotenv', () => ({
 
 jest.mock('../src/utils/DB', () => ({
   query: jest.fn(),
+  redisCli: {
+    set: jest.fn(),
+  },
 }));
 
 jest.mock('../src/utils/tokenUtils', () => ({
@@ -72,11 +79,11 @@ describe('jwtAuthentication', () => {
       },
     );
     (verifyRefreshToken as jest.Mock).mockResolvedValueOnce(true);
-
+    jest.spyOn(jwt, 'decode').mockReturnValueOnce({ id: 'user_id_here' });
     await jwtAuthentication(req as IRequest, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: '갱신 필요' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'refreshToken만료' });
   });
 
   it('인증이 성공한 경우', async () => {
@@ -100,11 +107,12 @@ describe('jwtAuthentication', () => {
       },
     );
     (verifyRefreshToken as jest.Mock).mockResolvedValueOnce(false);
+    jest.spyOn(jwt, 'decode').mockReturnValueOnce({ id: 'user_id_here' });
 
     await jwtAuthentication(req as IRequest, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: 'refreshToken만료' });
+    expect(res.json).toHaveBeenCalledWith({ message: 'accesstoken 갱신 필요' });
   });
 });
 
@@ -121,7 +129,7 @@ describe('localAuthentication', () => {
       },
     );
 
-    await jwtAuthentication(req, res, next);
+    await localAuthentication(req, res, next);
 
     expect(next).toHaveBeenCalledWith(error);
   });
@@ -184,6 +192,89 @@ describe('localAuthentication', () => {
 
     expect(req.user).toEqual(user);
     expect(next).toHaveBeenCalled();
+  });
+});
+
+describe('sessionLocalAuthentication', () => {
+  beforeEach(() => {
+    req.session = {};
+    req.sessionID = 'mockSessionID';
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('Passport 모듈의 authenticate 함수가 에러를 반환', async () => {
+    const error = new Error('Authentication error');
+    (passport.authenticate as jest.Mock).mockImplementationOnce(
+      (strategy: any, options: any, callback: any) => {
+        return callback(error, null, null);
+      },
+    );
+
+    await sessionLocalAuthentication(req, res, next);
+
+    expect(next).toHaveBeenCalledWith(error);
+  });
+  it('사용자의 정보가 없을 경우', () => {
+    const info = {
+      status: 404,
+      message: '사용자를 찾을 수 없습니다.',
+    };
+    const user: IUser = null; // 사용자 아이디 불일치
+    const error: Error = null;
+    (passport.authenticate as jest.Mock).mockImplementationOnce(
+      (strategy: any, options: any, callback: any) => {
+        callback(error, user, info);
+      },
+    );
+
+    sessionLocalAuthentication(req as IRequest, res, next);
+
+    expect(passport.authenticate).toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(info);
+  });
+
+  it('비밀번호가 불일치하는 경우', () => {
+    const info = {
+      status: 403,
+      message: '비밀번호가 일치하지 않습니다. ',
+    };
+    const user: IUser = null; // 비밀번호 불일치
+    const error: Error = null;
+    (passport.authenticate as jest.Mock).mockImplementationOnce(
+      (strategy: any, options: any, callback: any) => {
+        callback(error, user, info);
+      },
+    );
+
+    sessionLocalAuthentication(req as IRequest, res, next);
+
+    expect(passport.authenticate).toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(info);
+  });
+  it('user', async () => {
+    const user = { id: 'mockUserID', username: 'mockUsername' };
+
+    (passport.authenticate as jest.Mock).mockImplementationOnce(
+      (strategy, options, callback) => {
+        return callback(null, user, null);
+      },
+    );
+    (redisCli.set as jest.Mock).mockResolvedValueOnce(true);
+
+    await sessionLocalAuthentication(req, res, next);
+
+    expect(passport.authenticate).toHaveBeenCalledWith(
+      'local',
+      { session: true },
+      expect.any(Function),
+    );
+    expect(req.session.is_logined).toBe(true);
+    expect(req.session.userId).toBe('mockUserID');
+    expect(req.session.dispayName).toBe('mockUsername');
+    expect(next).toHaveBeenCalledTimes(2);
   });
 });
 
