@@ -7,7 +7,7 @@ import { PaginationResponseDTO } from '../dtos/diaryDTO';
 import { emailToken, sendEmail } from '../utils/email';
 import { emptyApiResponseDTO } from '../utils/emptyResult';
 import { IUser } from 'types/user';
-import redisClient, { query } from '../utils/DB';
+import { redisCli, query } from '../utils/DB';
 import { getMyWholeFriends } from './friendService';
 
 export const createUser = async (inputData: IUser) => {
@@ -54,10 +54,7 @@ export const myInfo = async (userId: string) => {
   return response;
 };
 
-export const getAllUsers = async (
-  page: number,
-  limit: number,
-) => {
+export const getAllUsers = async (page: number, limit: number) => {
   const userQuery = `
 SELECT u.*,
        case when f.status is not null then f.status else false end as status
@@ -177,11 +174,7 @@ OFFSET ?;
 export const logout = async (sessionID: string) => {
   const sessionKey = `session:${sessionID}`;
 
-  try {
-    await redisClient.del(sessionKey);
-  } catch (error) {
-    console.error('세션 삭제 실패:', error);
-  }
+  await redisCli.del(sessionKey);
 };
 
 export const getUserInfo = async (userId: string) => {
@@ -411,9 +404,6 @@ export const registerUser = async (
   const updatedUserQuery = 'SELECT * FROM user WHERE id = ?';
 
   const updatedUser = await query(updatedUserQuery, [userId]);
-  console.log(updatedUser);
-  console.log(1);
-  console.log(updatedUser[0]);
 
   const UserResponseDTO = plainToClass(userResponseDTO, updatedUser[0], {
     excludeExtraneousValues: true,

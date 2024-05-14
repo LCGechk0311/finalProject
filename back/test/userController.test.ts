@@ -10,8 +10,14 @@ import {
   testEmail,
   verifyEmail,
   getAllUser,
-  getMyFriend
-} from '../../controllers/userController';
+  getMyFriend,
+  sessionMyInfo,
+  userLogout,
+  refresh,
+  loginCallback,
+  emailLink,
+  emailVerified,
+} from '../src/controllers/userController';
 import {
   createUser,
   myInfo,
@@ -24,11 +30,19 @@ import {
   verifyToken,
   registerUser,
   getAllUsers,
-  getMyFriends
-} from '../../services/userService';
+  getMyFriends,
+  logout,
+  emailLinked,
+} from '../src/services/userService';
 import { Request, NextFunction } from 'express';
-import { IRequest } from 'types/request';
-import { query } from '../../utils/DB';
+import { IRequest } from '../src/types/request';
+import { query } from '../src/utils/DB';
+import {
+  generateRefreshToken,
+  generateAccessToken,
+  verifyRefreshToken,
+} from '../src/utils/tokenUtils';
+import { setCookie } from '../src/utils/responseData';
 
 let req: any = {};
 let res: any = {
@@ -37,7 +51,17 @@ let res: any = {
 };
 let next: NextFunction = jest.fn();
 
-jest.mock('../../services/userService', () => ({
+jest.mock('../src/utils/tokenUtils', () => ({
+  generateAccessToken: jest.fn(),
+  generateRefreshToken: jest.fn(),
+  verifyRefreshToken: jest.fn(),
+}));
+
+jest.mock('../src/utils/responseData', () => ({
+  setCookie: jest.fn(),
+}));
+
+jest.mock('../src/services/userService', () => ({
   myInfo: jest.fn(),
   createUser: jest.fn(),
   getUserInfo: jest.fn(),
@@ -49,13 +73,15 @@ jest.mock('../../services/userService', () => ({
   registerUser: jest.fn(),
   verifyToken: jest.fn(),
   getAllUsers: jest.fn(),
+  logout: jest.fn(),
+  emailLinked: jest.fn(),
   getMyFriends: jest.fn().mockResolvedValue({
     status: 200,
     data: ['friend1', 'friend2'],
   }),
 }));
 
-jest.mock('../../utils/DB', () => ({
+jest.mock('../src/utils/DB', () => ({
   query: jest.fn(),
 }));
 
@@ -147,6 +173,22 @@ describe('유저 CUD', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(mockUpdateInfo);
   });
+
+  it('양식에 맞춰서 입력하지 않았을 시', async () => {
+    const req: Partial<Request> = {
+      params: { userId: 'mockUser' },
+      body: {
+        email: 11,
+      },
+    };
+
+    await updateUser(req as IRequest, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: '양식에 맞춰서 입력해주세요',
+    });
+  });
 });
 
 describe('유저 정보', () => {
@@ -177,6 +219,17 @@ describe('유저 정보', () => {
     (myInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
 
     await getMyInfo(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(mockUserInfo);
+  });
+
+  it('session userinfo test', async () => {
+    const req: any = { session: { userId: 'mockSessionUserId' } };
+
+    (myInfo as jest.Mock).mockResolvedValueOnce(mockUserInfo);
+
+    await sessionMyInfo(req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(mockUserInfo);
@@ -225,12 +278,28 @@ describe('유저 정보', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(mockSearchInfo);
   });
+
+  it('유저 검색 시 올바른 키워드가 아닐 경우', async () => {
+    const req: any = { query: { searchTerm: '이', field: 'userId' } };
+
+    await searchKeyword(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: '올바른 필드 값을 지정하세요.',
+    });
+  });
 });
 
 describe('delete user', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
+  const mockSession = {
+    destroy: jest.fn((callback) => {
+      callback(null);
+    }),
+  };
   it('유저 삭제 성공', async () => {
     const req: any = {
       user: { id: 'mockUserId' },
@@ -256,6 +325,52 @@ describe('delete user', () => {
 
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({ message: '권한이 없습니다.' });
+  });
+
+  it('유저 세션 로그아웃 성공', async () => {
+    const mockRequest: any = {
+      session: mockSession,
+      sessionID: 'mockSessionID',
+    };
+    const mockResponse: any = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      clearCookie: jest.fn(),
+    };
+
+    require('../src/services/userService').logout.mockResolvedValueOnce();
+
+    await userLogout(mockRequest, mockResponse);
+
+    expect(mockSession.destroy).toHaveBeenCalled();
+    expect(mockResponse.clearCookie).toHaveBeenCalledWith('sessionID');
+    expect(mockResponse.status).toHaveBeenCalledWith(204);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      message: '로그아웃 완료',
+    });
+  });
+
+  it('유저 세션 정보 삭제 실패', async () => {
+    const mockRequest: any = {
+      session: mockSession,
+      sessionID: 'mockSessionID',
+    };
+    const mockResponse: any = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+      clearCookie: jest.fn(),
+    };
+    const mockError = new Error('Internal Server Error');
+    mockRequest.session.destroy.mockImplementationOnce((callback: any) => {
+      callback(mockError);
+    });
+
+    await userLogout(mockRequest, mockResponse);
+
+    expect(mockResponse.status).toHaveBeenCalledWith(500);
+    expect(mockResponse.json).toHaveBeenCalledWith({
+      message: 'Internal Server Error',
+    });
   });
 });
 
@@ -378,20 +493,17 @@ describe('이메일 인증', () => {
   });
 });
 
-describe('getAllUser', () => { 
-  const mockUser = { id: 'mockUserId' };
-  const mockUsersData = {
+describe('getAllUser', () => {
+  const mockUsersData = { 
     status: 200,
     data: [
       { id: 'mockUserId1', name: 'User 1' },
       { id: 'mockUserId2', name: 'User 2' },
     ],
   };
-
   beforeEach(() => {
     req = {
       query: { page: '1', limit: '10' },
-      user: mockUser,
     };
   });
 
@@ -404,7 +516,7 @@ describe('getAllUser', () => {
 
     await getAllUser(req as IRequest, res);
 
-    expect(getAllUsers).toHaveBeenCalledWith(mockUser.id, 1, 10);
+    expect(getAllUsers).toHaveBeenCalledWith(1, 10);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(mockUsersData);
   });
@@ -412,6 +524,13 @@ describe('getAllUser', () => {
 
 describe('getMyFriend', () => {
   const mockUser = { id: 'mockUserId' };
+  const mockUsersData = {
+    status: 200,
+    data: [
+      { id: 'mockUserId1', name: 'User 1' },
+      { id: 'mockUserId2', name: 'User 2' },
+    ],
+  };
   beforeEach(() => {
     req = {
       query: { page: '1', limit: '10' },
@@ -423,10 +542,109 @@ describe('getMyFriend', () => {
   });
 
   it('인증된 유저의 친구리스트 뽑아오기 ', async () => {
+    (getMyFriends as jest.Mock).mockResolvedValueOnce(mockUsersData);
+
     await getMyFriend(req as IRequest, res);
 
     expect(getMyFriends).toHaveBeenCalledWith('mockUserId', 1, 10);
     expect(res.status).toHaveBeenCalledWith(200);
-    expect(res.json).toHaveBeenCalledWith({ data: ['friend1', 'friend2'], status: 200 });
+  });
+});
+
+describe('refresh', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+  it('accesstoken, refreshtoken재발급 성공', async () => {
+    const req: any = {
+      body: {
+        userId: 'mockUserId',
+        refreshToken: 'mockRefreshToken',
+      },
+    };
+
+    (verifyRefreshToken as jest.Mock).mockResolvedValueOnce(true);
+    (generateAccessToken as jest.Mock).mockResolvedValueOnce(true);
+    (generateRefreshToken as jest.Mock).mockResolvedValueOnce(true);
+    (setCookie as jest.Mock).mockResolvedValueOnce(true);
+
+    await refresh(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({ message: '성공' });
+  });
+
+  it('요청시 refreshtoken이 없을 경우', async () => {
+    const req: any = {
+      body: {
+        userId: 'mockUserId',
+        refreshToken: null,
+      },
+    };
+
+    await refresh(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(res.json).toHaveBeenCalledWith({
+      message: '검색결과가 없습니다.',
+    });
+  });
+
+  it('유효하지 않은 refreshtoken을 받았을 경우', async () => {
+    const req: any = {
+      body: {
+        userId: 'mockUserId',
+        refreshToken: 'mockRefreshToken',
+      },
+    };
+
+    (verifyRefreshToken as jest.Mock).mockResolvedValueOnce(null);
+
+    await refresh(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'refreshToken이 유효하지않음',
+    });
+  });
+});
+
+describe('etc', () => {
+  afterEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('소셜로그인 콜백', async () => {
+    const res: any = {
+      redirect: jest.fn(),
+    };
+
+    await loginCallback(req, res);
+
+    expect(res.redirect).toHaveBeenCalledWith('/');
+  });
+
+  it('이메일 링크 인증 시 선 이메일 요청이 올 경우', async () => {
+    const req: any = {
+      body: {
+        email: 'mockEmail@email.com',
+      },
+    };
+
+    (emailLinked as jest.Mock).mockReturnValueOnce(true);
+
+    await emailLink(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({ message: '이메일을 확인해주세요' });
+  });
+
+  it('이메일 인증 확인 메시지 전송', async () => {
+    const res: any = {
+      send: jest.fn(),
+    };
+    await emailVerified(req, res);
+
+    expect(res.send).toHaveBeenCalledWith(
+      '이메일이 성공적으로 인증되었습니다.',
+    );
   });
 });

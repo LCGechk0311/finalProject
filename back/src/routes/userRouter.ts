@@ -20,7 +20,7 @@ import {
   sessionMyInfo,
 } from '../controllers/userController';
 import { jwtAuthentication } from '../middlewares/authenticateJwt';
-// import { profileImageUpload } from '../middlewares/uploadMiddleware';
+import { profileImageUpload } from '../middlewares/uploadMiddleware';
 import { wrapAsyncController } from '../utils/wrapper';
 import passport from 'passport';
 import { requireAuthentication } from '../middlewares/sessionAuthorization';
@@ -76,7 +76,7 @@ userRouter.post(
 userRouter
   .route('/:userId')
   .get(jwtAuthentication, wrapAsyncController(getUserId))
-  .put(jwtAuthentication, wrapAsyncController(updateUser))
+  .put(jwtAuthentication, profileImageUpload, wrapAsyncController(updateUser))
   .delete(jwtAuthentication, wrapAsyncController(deleteUser));
 
 // 비밀번호 재설정 이메일 보내기

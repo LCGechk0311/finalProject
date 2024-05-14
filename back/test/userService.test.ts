@@ -1,4 +1,4 @@
-import { IUser } from 'types/user';
+import { IUser } from '../src/types/user';
 import {
   createUser,
   myInfo,
@@ -13,32 +13,35 @@ import {
   verifyToken,
   registerUser,
   deleteUserService,
-} from '../../services/userService';
-
-import { query } from '../../utils/DB';
+  logout,
+} from '../src/services/userService';
+import { query, redisCli } from '../src/utils/DB';
 import bcrypt from 'bcrypt';
-import { getMyWholeFriends } from '../../services/friendService';
-import { generateRandomPassowrd } from '../../utils/password';
-import { emailToken, sendEmail } from '../../utils/email';
+import { getMyWholeFriends } from '../src/services/friendService';
+import { generateRandomPassowrd } from '../src/utils/password';
+import { emailToken, sendEmail } from '../src/utils/email';
 
-jest.mock('../../utils/DB', () => ({
+jest.mock('../src/utils/DB', () => ({
   query: jest.fn(),
+  redisCli: {
+    del: jest.fn(),
+  },
 }));
 
-jest.mock('../../services/friendService', () => ({
+jest.mock('../src/services/friendService', () => ({
   getMyWholeFriends: jest.fn(),
 }));
 
-jest.mock('../../utils/email', () => ({
+jest.mock('../src/utils/email', () => ({
   sendEmail: jest.fn(),
   emailToken: jest.fn(),
 }));
 
-jest.mock('../../utils/password', () => ({
+jest.mock('../src/utils/password', () => ({
   generateRandomPassowrd: jest.fn(),
 }));
 
-describe('유저 생성, 업데이트, 삭제 등의 유저 CUD서비스 테스트', () => {
+describe('유저 생성, 업데이트, 삭제 등의 유저 CUD서비스 테스트 + 세션 로그아웃', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
@@ -81,7 +84,7 @@ describe('유저 생성, 업데이트, 삭제 등의 유저 CUD서비스 테스�
     expect(result.status).toEqual(200);
   });
 
-  it('유저 정보 업데이트', async () => {
+  it('유저 정보 업데이트 성공', async () => {
     const userId = 'mockUserId';
     const inputData = {
       username: 'updateUsername',
@@ -101,12 +104,60 @@ describe('유저 생성, 업데이트, 삭제 등의 유저 CUD서비스 테스�
     });
   });
 
+  it('입력 정보에 비밀번호가 들어갈 경우', async () => {
+    const userId = 'mockUserId';
+    const inputData = {
+      username: 'updateUsername',
+      email: 'update@test.com1',
+      password: 'password',
+    };
+
+    (query as jest.Mock).mockResolvedValueOnce(true);
+    (query as jest.Mock).mockResolvedValueOnce([inputData]);
+
+    const result = await updateUserService(userId, inputData);
+
+    expect(inputData.password).toBeUndefined();
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      data: expect.objectContaining(inputData),
+      message: '성공',
+      status: 200,
+    });
+  });
+
+  it('유저 수정 변경 사항이 없을 경우', async () => {
+    const userId = 'mockUserId';
+
+    (query as jest.Mock).mockResolvedValueOnce(true);
+    (query as jest.Mock).mockResolvedValueOnce([]);
+
+    const result = await updateUserService(userId, []);
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({
+      data: expect.objectContaining([]),
+      message: '성공',
+      status: 200,
+    });
+  });
+
   it('유저 관련 정보 삭제', async () => {
     const userId = 'mockUserId';
 
     await deleteUserService(userId);
 
     expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  it('세션 로그아웃 성공', async () => {
+    const sessionID = 'mockSessionID';
+
+    (redisCli.del as jest.Mock).mockReturnThis();
+
+    await logout(sessionID);
+
+    expect(redisCli.del).toHaveBeenCalled();
   });
 });
 
@@ -250,9 +301,22 @@ describe('유저 리스트 별 불러오기', () => {
     expect(result).toEqual(expectedResponse);
   });
 
-  it('키워드에 맞는 유저 리스트 검색 성공', async () => {
+  it('키워드로 유저 이름이 들어갔을때 맞는 유저 리스트 검색 성공', async () => {
     const searchTerm = 'test';
     const field = 'username';
+
+    (query as jest.Mock).mockResolvedValueOnce(userList);
+    (query as jest.Mock).mockResolvedValueOnce([totalResult]);
+
+    const result = await getUsers(searchTerm, field, page, limit);
+
+    expect(query).toHaveBeenCalledTimes(2);
+    expect(result.data).toEqual(expect.objectContaining(userList));
+  });
+
+  it('키워드로 이메일이 들어갔을때 맞는 유저 리스트 검색 성공', async () => {
+    const searchTerm = 'test';
+    const field = 'email';
 
     (query as jest.Mock).mockResolvedValueOnce(userList);
     (query as jest.Mock).mockResolvedValueOnce([totalResult]);
@@ -312,10 +376,23 @@ describe('이메일 인증 링크 서비스 테스트', () => {
     jest.clearAllMocks();
   });
 
-  it('이메일 인증을 위한 링크를 관련 유저 이메일에 보내는 부분', async () => {
+  it('이메일 인증을 위한 링크를 관련 유저 이메일에 보내는 부분(개발)', async () => {
     const email = 'test@email.com';
     const result = { token: 'mockToken', expires: 'mockExpires' };
     process.env.NODE_ENV = 'development';
+
+    (emailToken as jest.Mock).mockResolvedValueOnce(result);
+
+    await emailLinked(email);
+
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('이메일 인증을 위한 링크를 관련 유저 이메일에 보내는 부분(production)', async () => {
+    const email = 'test@email.com';
+    const result = { token: 'mockToken', expires: 'mockExpires' };
+    process.env.NODE_ENV = 'production';
 
     (emailToken as jest.Mock).mockResolvedValueOnce(result);
 
@@ -338,8 +415,8 @@ describe('이메일 인증 링크 서비스 테스트', () => {
     const username = 'mockUsername';
     const password = 'testpassword';
     const updatedUser = {
-        id: userId,
-        username,
+      id: userId,
+      username,
     };
 
     (query as jest.Mock).mockResolvedValueOnce(true);
@@ -348,10 +425,12 @@ describe('이메일 인증 링크 서비스 테스트', () => {
     const result = await registerUser(userId, username, password);
 
     expect(query).toHaveBeenCalledTimes(2);
-    expect(result).toEqual(expect.objectContaining({
+    expect(result).toEqual(
+      expect.objectContaining({
         data: updatedUser,
         status: 200,
-        message: '성공'
-    }))
+        message: '성공',
+      }),
+    );
   });
 });
